@@ -1,0 +1,9 @@
+.pio
+.vscode
+src/*.zip
+backup
+*.github
+*.local
+data/wifi.json
+platformio.ini.*
+src.*

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Coop Feeder</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="gauge.min.js"></script>
+    </head>
+  <body>
+    <div class="content">
+      <div class="card-grid">
+        <div class="card" id="coop-card">
+          <h2>Chicken Feeder Gauge</h2>
+          <div class="gauge-container">
+            <canvas id="gauge-coop"></canvas>
+          </div>
+          <p class="content"><span id="feed"></span> <span id="units"></span></p>
+          <p class="time-display">Local Time: <span id="local-time"></span></p>
+          <p class="time-display">Last Refresh: <span id="last-refresh"></span></p>
+          <div class="calibration-buttons">
+            <a href="/config?empty" class="calibration-button">Calibrate Empty</a>
+            <a href="/config?full" class="calibration-button">Calibrate Full</a>
+          </div>
+        </div>
+      </div>
+    </br>
+    </div>
+    <script src="/script.js"></script>
+  </body>
+</html>
