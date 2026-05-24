@@ -3,7 +3,6 @@
 
 AsyncWebServer server(HTTP_PORT);
 AsyncEventSource events("/events");
-AsyncWebSocket ws("/ws");
 bool serverStarted = false;
 JsonDocument readings;
 JsonDocument browserTimeData;
@@ -39,14 +38,12 @@ void startWebServer() {
     log::toAll("AP IP: " + WiFi.softAPIP().toString());
   }
 
-  // start serving from SPIFFS
-  server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
-  // for .js .css etc
-  server.serveStatic("/", SPIFFS, "/");
+  // start serving from LittleFS
+  server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
     log::toAll("index.html");
-    request->send(SPIFFS, "/index.html", "text/html", false, processor);
+    request->send(LittleFS, "/index.html", "text/html", false, processor);
   });
 
   // Request latest sensor readings
@@ -75,15 +72,18 @@ void startWebServer() {
       host = request->getParam("hostname")->value();
       response = "change hostname to " + host;
       log::toAll(response);
-      preferences.putString("hostname",host);
-      log::toAll("preferences " + preferences.getString("hostname", "unknown") + "\n");
+      pendingHostname = host;
+      pendingHostnameChange = true;
+      pendingSaveToPrefs = true;
     } else if (request->hasParam("webtimer")) {
       timerDelay = atoi(request->getParam("webtimer")->value().c_str());
       if (timerDelay < 0) timerDelay = DEFDELAY;
       if (timerDelay > 10000) timerDelay = 10000;
       response = "change web timer to " + String(timerDelay);
       log::toAll(response);
-      preferences.putInt("timerdelay",timerDelay);
+      pendingTimerDelay = timerDelay;
+      pendingTimerChange = true;
+      pendingSaveToPrefs = true;
     } else if (request->hasParam("empty")) {
       configTare("empty");
       response = "empty calibration successful, empty raw offset is " + String(empty_offset);
@@ -148,17 +148,11 @@ void startWebServer() {
     if(client->lastId()){
       Serial.printf("Client reconnected! Last message ID that it got is: %u\n", client->lastId());
     }
-    // send event with message "hello!", id current millis
-    // and set reconnect delay to 1 second
-    client->send("hello!", NULL, millis(), 1000);
+    // Send current sensor reading on connect so UI is immediately populated
+    String currentReading = getSensorReadings();
+    client->send(currentReading.c_str(), "new_readings", millis(), 1000);
   });
   server.addHandler(&events);
-  server.addHandler(&ws);
-  
-  // Begin server
-  server.begin();
-  log::toAll("Web server started successfully");
-  serverStarted = true;
 
   // Handle OPTIONS preflight requests for CORS
   server.onNotFound([](AsyncWebServerRequest *request) {
@@ -174,5 +168,10 @@ void startWebServer() {
     // Handle not found for other requests
     request->send(404);
   });
+  
+  // Begin server
+  server.begin();
+  log::toAll("Web server started successfully");
+  serverStarted = true;
 }
 #endif

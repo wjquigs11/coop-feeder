@@ -135,4 +135,43 @@ void resetWifi() {
   // Restart the ESP32
   //ESP.restart();
 }
+
+// Debounce WiFi checks — transient disconnects shouldn't trigger reconnects
+static unsigned long lastWifiDisconnect = 0;
+static int wifiFailCount = 0;
+
+void wifiCheck() {
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiFailCount = 0;
+    return;
+  }
+  
+  // First disconnect: just note the time, don't react yet
+  if (wifiFailCount == 0) {
+    lastWifiDisconnect = millis();
+    wifiFailCount = 1;
+    return;
+  }
+  
+  // Wait 5 seconds before deciding it's a real disconnect
+  if (millis() - lastWifiDisconnect < 5000) {
+    return;
+  }
+  
+  // Still disconnected after 5s — try a soft reconnect
+  if (wifiFailCount < 3) {
+    wifiFailCount++;
+    Serial.printf("WiFi disconnected, attempt %d...\n", wifiFailCount);
+    WiFi.reconnect();
+    lastWifiDisconnect = millis();
+    return;
+  }
+  
+  // Multiple soft reconnects failed — do a full reconnect via NetWizard
+  Serial.println("WiFi reconnect failed, restarting autoConnect...");
+  wifiFailCount = 0;
+  WiFi.disconnect(true);
+  delay(100);
+  NW.autoConnect("COOPFEEDER", "");
+}
 #endif

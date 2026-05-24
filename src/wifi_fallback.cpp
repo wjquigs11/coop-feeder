@@ -4,6 +4,45 @@
 
 #include "include.h"
 
+// Debounce WiFi checks — transient disconnects shouldn't trigger reconnects
+static unsigned long lastWifiDisconnect = 0;
+static int wifiFailCount = 0;
+
+void wifiCheck() {
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiFailCount = 0;
+    return;
+  }
+  
+  // First disconnect: just note the time, don't react yet
+  if (wifiFailCount == 0) {
+    lastWifiDisconnect = millis();
+    wifiFailCount = 1;
+    return;
+  }
+  
+  // Wait 5 seconds before deciding it's a real disconnect
+  if (millis() - lastWifiDisconnect < 5000) {
+    return;
+  }
+  
+  // Still disconnected after 5s — try a soft reconnect first
+  if (wifiFailCount < 3) {
+    wifiFailCount++;
+    log::toAll("WiFi disconnected, attempt " + String(wifiFailCount) + "...");
+    WiFi.reconnect();
+    lastWifiDisconnect = millis();  // reset timer for next check
+    return;
+  }
+  
+  // Multiple soft reconnects failed — do a full reconnect
+  log::toAll("WiFi reconnect failed, doing full reconnect...");
+  wifiFailCount = 0;
+  WiFi.disconnect(true);
+  delay(100);
+  setupWifi();
+}
+
 bool setupWifi() {
   Serial.println("Starting WiFi (fallback mode)...");
   
@@ -12,8 +51,8 @@ bool setupWifi() {
   String password = "";
   
   // Read WiFi credentials from JSON file
-  if (SPIFFS.exists("/wifi.json")) {
-    File configFile = SPIFFS.open("/wifi.json", "r");
+  if (LittleFS.exists("/wifi.json")) {
+    File configFile = LittleFS.open("/wifi.json", "r");
     if (configFile) {
       Serial.println("Reading WiFi credentials from config file");
       
@@ -38,6 +77,11 @@ bool setupWifi() {
   
   if (ssid.length() == 0) {
     Serial.println("No SSID configured, cannot connect to WiFi");
+    // Start AP so the TCP/IP stack is initialized for the web server
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(host.c_str());
+    Serial.println("Started AP mode: " + host);
+    Serial.println("AP IP: " + WiFi.softAPIP().toString());
     return false;
   }
   
@@ -62,8 +106,14 @@ bool setupWifi() {
     return true;
   } else {
     Serial.println("");
-    Serial.println("Failed to connect to WiFi. Please configure WiFi manually.");
-    Serial.println("Format of the wifi.json file to put in spiffs (/data):");
+    Serial.println("Failed to connect to WiFi. Starting AP mode...");
+    // Start AP so the TCP/IP stack is initialized for the web server
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(host.c_str());
+    Serial.println("Started AP mode: " + host);
+    Serial.println("AP IP: " + WiFi.softAPIP().toString());
+    Serial.println("Format of the wifi.json file to put in LittleFS (/data):");
     Serial.println("{\n\t\"ssid\": \"your_SSID\",\n\t\"password\": \"your_password\"\n}");
     return false;
   }

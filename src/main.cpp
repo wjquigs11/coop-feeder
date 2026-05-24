@@ -12,7 +12,7 @@ There are several ways to tare:
   or use "http://coopfeeder.local/webserial", which is a basic command-line interface, and enter "tare"
   or click the "calibrate empty" button on the web interface
 You can also change the hostname and the response time for the web interface (default 1 second) using /config
-A console log is stored on spiffs; access it via http://coopfeeder.local/console.log
+A console log is stored on LittleFS; access it via http://coopfeeder.local/console.log
 This repo uses the WebSerial and NetWizard libraries from ayusharma, as well as the ElegantOTA library for development
 */
 
@@ -24,6 +24,13 @@ Preferences preferences;
 bool wifiEnabled = false;
 int timerDelay = 1000;
 unsigned long lastTime = 0;
+
+// Deferred flash write state
+volatile bool pendingSaveToPrefs = false;
+volatile bool pendingHostnameChange = false;
+String pendingHostname = "";
+volatile bool pendingTimerChange = false;
+int pendingTimerDelay = 0;
 
 // HX711 circuit wiring
 const int HX711_dout = 27; //mcu > HX711 dout pin
@@ -67,20 +74,12 @@ void setup() {
   //pinMode(HX711_dout, INPUT);
   //pinMode(HX711_sck, OUTPUT);
 
-  if (SPIFFS.begin())
-    Serial.println("opened SPIFFS");
+  if (LittleFS.begin(true))
+    Serial.println("opened LittleFS");
   else
-    Serial.println("failed to open SPIFFS");
+    Serial.println("failed to open LittleFS");
 
-  consLog = SPIFFS.open("/console.log", "a", true);
-  if (!consLog) {
-    log::toAll("failed to open console log");
-  }
-  if (consLog.println("ESP console log.")) {
-    log::toAll("console log written");
-  } else {
-    log::toAll("console log write failed");
-  }
+  log::initConsole();
   preferences.begin("ESPprefs", false);
   //restore the offset values from preferences:
   empty_offset = preferences.getLong("empty_offset", 0);
@@ -136,26 +135,35 @@ void setup() {
       } else {
         log::toAll("HTTP server started in AP mode @" + WiFi.softAPIP().toString());
       }
-      if (!MDNS.begin(host.c_str()))
-        log::toAll(F("Error starting MDNS responder"));
-      else {
-        log::toAll("MDNS started " + host);
+      // Sanitize hostname for mDNS
+      String mdnsHost = host;
+      mdnsHost.toLowerCase();
+      mdnsHost.replace("_", "-");
+      mdnsHost.replace(" ", "-");
+      String sanitized = "";
+      for (int i = 0; i < (int)mdnsHost.length() && i < 63; i++) {
+        char c = mdnsHost.charAt(i);
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+          sanitized += c;
+        }
+      }
+      if (sanitized.length() > 0) {
+        if (!MDNS.begin(sanitized.c_str())) {
+          log::toAll("Error starting MDNS responder");
+        } else {
+          snprintf(logbuf, LOGBUF_SIZE, "MDNS started as %s.local", sanitized.c_str());
+          log::toAll(logbuf);
+        }
+      } else {
+        log::toAll("Invalid hostname for MDNS");
       }
       // Add service to MDNS-SD
       if (!MDNS.addService("http", "tcp", HTTP_PORT))
         log::toAll("MDNS add service failed");
-      int n = MDNS.queryService("http", "tcp");
-      if (n == 0) {
-        log::toAll("No services found");
-      } else {
-        for (int i = 0; i < n; i++) {
-          log::toAll("mdns service: " + MDNS.hostname(i) + " (" + String(MDNS.IP(i)) + ":" + String(MDNS.port(i)) + ")");
-        }
-      }
     //}
   }
 #endif // WIFI
-  consLog.flush();
+  log::flush();
 } // setup()
 
 void loop() {
@@ -171,6 +179,7 @@ void loop() {
   unsigned long now = millis();
   static unsigned long lastEventTime, lastTimeTime, startTime;
 #ifdef WIFI
+  wifiCheck();
   // update web page
   static bool drdCleared = false;
   
@@ -217,7 +226,6 @@ void loop() {
       
       events.send(getSensorReadings().c_str(),"new_readings" ,millis());
 #endif
-      consLog.flush();
     }
   }
   if (Serial.available() > 0) {
@@ -239,4 +247,20 @@ void loop() {
         configTare("full");
     }
   }
+  // Deferred flash writes — do them here, not from async web handlers
+  if (pendingSaveToPrefs) {
+    pendingSaveToPrefs = false;
+    if (pendingHostnameChange) {
+      pendingHostnameChange = false;
+      preferences.putString("hostname", pendingHostname);
+      log::toAll("preferences saved hostname: " + pendingHostname);
+    }
+    if (pendingTimerChange) {
+      pendingTimerChange = false;
+      preferences.putInt("timerdelay", pendingTimerDelay);
+      snprintf(logbuf, LOGBUF_SIZE, "preferences saved timerdelay: %d", pendingTimerDelay);
+      log::toAll(logbuf);
+    }
+  }
+  log::flush();
 } // loop()

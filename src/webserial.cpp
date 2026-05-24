@@ -52,12 +52,12 @@ void WebSerialonMessage(uint8_t *data, size_t len) {
       return;
     }
     if (words[i].equals("format")) {
-      SPIFFS.format();
-      log::toAll("SPIFFS formatted");
+      LittleFS.format();
+      log::toAll("LittleFS formatted");
       return;
     }
     if (words[i].startsWith("conslog")) {
-      consLog = SPIFFS.open("/console.log", "w", true);
+      consLog = LittleFS.open("/console.log", "w", true);
       if (!consLog) {
         log::toAll("failed to open console log");
       }
@@ -73,7 +73,7 @@ void WebSerialonMessage(uint8_t *data, size_t len) {
       ESP.restart();
     }
     if (words[i].equals("ls")) {
-      File root = SPIFFS.open("/");
+      File root = LittleFS.open("/");
       File file = root.openNextFile();
       while (file) {
         log::toAll(file.name());

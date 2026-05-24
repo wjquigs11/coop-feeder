@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <Preferences.h>
 
 #if defined(WIFI) || defined(NETWIZARD)
@@ -24,6 +24,7 @@ extern int timerDelay;
 #define DRD_TIMEOUT 10
 bool setupWifi();
 void resetWifi();
+void wifiCheck();
 void startWebServer();
 String getSensorReadings();
 #endif
@@ -44,6 +45,14 @@ extern NetWizard NW;
 
 extern Preferences preferences;
 extern File consLog;
+
+// Deferred flash write flag — set in web handlers, consumed in loop()
+extern volatile bool pendingSaveToPrefs;
+// Pending preference values for deferred write
+extern volatile bool pendingHostnameChange;
+extern String pendingHostname;
+extern volatile bool pendingTimerChange;
+extern int pendingTimerDelay;
 
 // weight value from load cell
 extern long loadcell;
