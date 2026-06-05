@@ -228,25 +228,10 @@ void loop() {
 #endif
     }
   }
-  if (Serial.available() > 0) {
-    String input = "";
-    while (Serial.available() > 0) {
-      char c = Serial.read();
-      if (c == '\n' || c == '\r') {
-        // Ignore newline and carriage return characters
-        break;
-      }
-      input += c;
-    }
-    if (input.length() > 0) {
-      Serial.print("Received: ");
-      Serial.println(input);
-      if (input == "empty")
-        configTare("empty");
-      else if (input == "full")
-        configTare("full");
-    }
-  }
+  // Serial/WebSerial command handler
+#ifdef WEBSERIAL
+  pollSerialConsole();
+#endif
   // Deferred flash writes — do them here, not from async web handlers
   if (pendingSaveToPrefs) {
     pendingSaveToPrefs = false;

@@ -32,6 +32,8 @@ String getSensorReadings();
 #ifdef WEBSERIAL
 #include <WebSerialPro.h>
 void WebSerialonMessage(uint8_t *data, size_t len);
+void handleCommand(String dataS);
+void pollSerialConsole();
 #endif
 #ifdef ELEGANTOTA
 #include <ElegantOTA.h>
