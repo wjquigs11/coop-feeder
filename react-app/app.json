@@ -4,13 +4,13 @@
     "slug": "coop-feeder",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/superchicken.png",
     "scheme": "coopfeeder",
     "userInterfaceStyle": "automatic",
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/superchicken.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.wjquigs.coopfeeder"
@@ -22,6 +22,14 @@
     "plugins": [
       "expo-router",
       "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {

@@ -72,6 +72,19 @@ export async function fetchReading(baseUrl: string): Promise<Reading> {
 }
 
 /**
+ * Run a load-cell calibration on the device via GET /config?empty or
+ * GET /config?full. The device captures the current raw reading as the
+ * empty/full reference. Returns the device's plain-text confirmation message.
+ */
+export async function calibrate(baseUrl: string, which: 'empty' | 'full'): Promise<string> {
+  const res = await fetchWithTimeout(`${baseUrl}/config?${which}`);
+  if (!res.ok) {
+    throw new Error(`Calibration failed: HTTP ${res.status}.`);
+  }
+  return (await res.text()).trim();
+}
+
+/**
  * Send the current device (phone) time to the feeder so its lastUpdate becomes
  * a real Unix timestamp. Best-effort: failures are ignored by the caller.
  */
