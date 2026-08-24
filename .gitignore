@@ -7,3 +7,8 @@ backup
 data/wifi.json
 platformio.ini.*
 src.*
+
+# react-app: exclude AI-assistant scaffold and stray tool settings (boilerplate)
+react-app/AGENTS.md
+react-app/CLAUDE.md
+react-app/settings.json
