@@ -2,21 +2,42 @@ import Gauge from '@/Gauge';
 import { LOW_THRESHOLD } from '@/backgroundTask';
 import { useFeeder } from '@/useFeeder';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef } from 'react';
+import { ActivityIndicator, AppState, type AppStateStatus, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FeederScreen() {
   const router = useRouter();
-  const { status, reading, errorMessage, reloadFromStorage } = useFeeder();
+  const { status, reading, errorMessage, refreshFeeder, reloadFromStorage, lastBackgroundRun } =
+    useFeeder();
 
   // Reload the saved hostname + last reading every time this screen gains
-  // focus, so a connection made on the Settings screen shows up here.
+  // focus (e.g. returning from Settings), then do a slim live refresh so the
+  // gauge reflects the current level right when the app is opened — separate
+  // from the once-a-day background task.
   useFocusEffect(
     useCallback(() => {
-      reloadFromStorage().catch(() => {});
-    }, [reloadFromStorage]),
+      (async () => {
+        await reloadFromStorage();
+        await refreshFeeder();
+      })().catch(() => {});
+    }, [reloadFromStorage, refreshFeeder]),
   );
+
+  // Also refresh when the app returns to the foreground while already running
+  // (warm resume: background/inactive -> active), which useFocusEffect alone
+  // does not catch.
+  const appState = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      const prev = appState.current;
+      appState.current = next;
+      if (next === 'active' && prev !== 'active') {
+        refreshFeeder().catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, [refreshFeeder]);
 
   const connecting = status === 'connecting';
   const showGauge = status === 'connected' && reading != null;
@@ -44,6 +65,11 @@ export default function FeederScreen() {
             {fetchedAt != null && (
               <Text style={styles.refreshText}>
                 Last checked: {new Date(fetchedAt).toLocaleString()}
+              </Text>
+            )}
+            {lastBackgroundRun != null && (
+              <Text style={styles.refreshText}>
+                Last background check: {new Date(lastBackgroundRun).toLocaleString()}
               </Text>
             )}
           </>

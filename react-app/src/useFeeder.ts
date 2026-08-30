@@ -10,6 +10,7 @@ import { LOW_THRESHOLD, registerFeederBackgroundTask } from './backgroundTask';
 import { ensureNotificationPermission, sendLowFeedAlert } from './notifications';
 import {
   loadHostname,
+  loadLastBackgroundRun,
   loadLastReading,
   loadWasLow,
   saveHostname,
@@ -27,10 +28,16 @@ export function useFeeder() {
   const [status, setStatus] = useState<Status>('idle');
   const [reading, setReading] = useState<Reading | StoredReading | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Wall-clock time (ms) of the last automatic background check, or null.
+  const [lastBackgroundRun, setLastBackgroundRun] = useState<number | null>(null);
+  // Foreground-refresh outcome, so a silent failure (device unreachable) is
+  // visible instead of leaving a stale timestamp with no explanation.
+  const [lastRefreshAttempt, setLastRefreshAttempt] = useState<number | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
-  // Restore the saved hostname and last stored reading (e.g. from the
-  // background task) so the gauge isn't blank. Safe to call repeatedly, such
-  // as whenever the home screen regains focus.
+  // Restore the saved hostname, last stored reading, and last background-run
+  // time (e.g. from the background task) so the gauge isn't blank. Safe to call
+  // repeatedly, such as whenever the home screen regains focus.
   const reloadFromStorage = useCallback(async () => {
     const savedHost = await loadHostname();
     if (savedHost) setHostname(savedHost);
@@ -39,6 +46,7 @@ export function useFeeder() {
       setReading(last);
       setStatus('connected');
     }
+    setLastBackgroundRun(await loadLastBackgroundRun());
   }, []);
 
   // Apply a fresh reading and persist it, firing the low-feed alert only on the
@@ -101,6 +109,36 @@ export function useFeeder() {
     [hostname, handleReading],
   );
 
+  // Slim foreground refresh used when the app is opened / brought to the
+  // foreground. Unlike connect(), it does not prompt for permissions, post the
+  // browser time, or (re)register the background task — it just re-reads the
+  // current level using the already-saved hostname. Silent no-op if no feeder
+  // is configured or the device is unreachable, so opening the app never throws
+  // the user into an error state; the last known reading stays on screen.
+  const refreshFeeder = useCallback(async (): Promise<void> => {
+    const savedHost = await loadHostname();
+    if (!savedHost) return;
+
+    setLastRefreshAttempt(Date.now());
+
+    let baseUrl: string;
+    try {
+      baseUrl = buildBaseUrl(savedHost);
+    } catch (err) {
+      setRefreshError(err instanceof Error ? err.message : 'Invalid hostname.');
+      return;
+    }
+    try {
+      const next = await fetchReading(baseUrl);
+      await handleReading(next);
+      setRefreshError(null);
+    } catch (err) {
+      // Keep the last known reading on screen, but record why the refresh
+      // failed so the UI can show it instead of a misleading stale timestamp.
+      setRefreshError(err instanceof Error ? err.message : 'Could not reach the feeder.');
+    }
+  }, [handleReading]);
+
   // Run an empty/full calibration against the currently entered feeder.
   // Returns the device's confirmation message, or throws on failure.
   const calibrateFeeder = useCallback(
@@ -119,6 +157,8 @@ export function useFeeder() {
     errorMessage,
     connect,
     calibrateFeeder,
+    refreshFeeder,
     reloadFromStorage,
+    lastBackgroundRun,
   };
 }

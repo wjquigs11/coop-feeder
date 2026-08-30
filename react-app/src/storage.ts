@@ -8,6 +8,7 @@ import type { Reading } from './api';
 const KEY_HOSTNAME = 'coopfeeder.hostname';
 const KEY_LAST_READING = 'coopfeeder.lastReading';
 const KEY_WAS_LOW = 'coopfeeder.wasLow';
+const KEY_LAST_BG_RUN = 'coopfeeder.lastBackgroundRun';
 
 /** A reading plus the wall-clock time (ms) at which this app fetched it. */
 export type StoredReading = Reading & { fetchedAt: number };
@@ -46,4 +47,21 @@ export async function saveWasLow(wasLow: boolean): Promise<void> {
 
 export async function loadWasLow(): Promise<boolean> {
   return (await AsyncStorage.getItem(KEY_WAS_LOW)) === '1';
+}
+
+/**
+ * Wall-clock time (ms) of the last successful background (WorkManager/
+ * BGTaskScheduler) poll. Recorded only by the background task, kept separate
+ * from the foreground fetch time so the UI can still show when the device last
+ * ran the automatic once-a-day check even after a foreground refresh.
+ */
+export async function saveLastBackgroundRun(when: number = Date.now()): Promise<void> {
+  await AsyncStorage.setItem(KEY_LAST_BG_RUN, String(when));
+}
+
+export async function loadLastBackgroundRun(): Promise<number | null> {
+  const raw = await AsyncStorage.getItem(KEY_LAST_BG_RUN);
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
 }

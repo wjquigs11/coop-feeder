@@ -10,7 +10,13 @@ import * as TaskManager from 'expo-task-manager';
 
 import { buildBaseUrl, fetchReading } from './api';
 import { sendLowFeedAlert } from './notifications';
-import { loadHostname, loadWasLow, saveLastReading, saveWasLow } from './storage';
+import {
+  loadHostname,
+  loadWasLow,
+  saveLastBackgroundRun,
+  saveLastReading,
+  saveWasLow,
+} from './storage';
 
 export const FEEDER_BACKGROUND_TASK = 'coopfeeder-poll';
 
@@ -53,6 +59,9 @@ TaskManager.defineTask(FEEDER_BACKGROUND_TASK, async () => {
     const baseUrl = buildBaseUrl(hostname);
     const reading = await fetchReading(baseUrl);
     await saveLastReading(reading);
+    // Record when this automatic background check actually ran, separate from
+    // any foreground refresh, so the UI can display it.
+    await saveLastBackgroundRun();
 
     // 3. Fire the low-feed alert only on the downward crossing below threshold.
     const isLow = reading.level < LOW_THRESHOLD;
