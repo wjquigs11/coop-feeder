@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -70,7 +71,11 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.heading}>Feeder connection</Text>
         <Text style={styles.help}>
           Enter your feeder&apos;s hostname or IP address, then tap Connect.
@@ -145,7 +150,7 @@ export default function SettingsScreen() {
         {calibrationMessage != null && (
           <Text style={styles.calMessage}>{calibrationMessage}</Text>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -155,9 +160,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  container: {
+  scroll: {
     flex: 1,
+  },
+  container: {
+    flexGrow: 1,
     padding: 20,
+    paddingBottom: 40,
     gap: 14,
   },
   heading: {

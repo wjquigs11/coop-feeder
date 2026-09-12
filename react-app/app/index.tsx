@@ -2,8 +2,16 @@ import Gauge from '@/Gauge';
 import { LOW_THRESHOLD } from '@/backgroundTask';
 import { useFeeder } from '@/useFeeder';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef } from 'react';
-import { ActivityIndicator, AppState, type AppStateStatus, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  AppState,
+  type AppStateStatus,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FeederScreen() {
@@ -47,12 +55,28 @@ export default function FeederScreen() {
     return () => sub.remove();
   }, [refreshFeeder]);
 
+  // Tracks an in-flight manual refresh so the button can show progress and
+  // avoid overlapping requests.
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    refreshFeeder()
+      .catch(() => {})
+      .finally(() => setRefreshing(false));
+  }, [refreshFeeder, refreshing]);
+
   const connecting = status === 'connecting';
   const showGauge = status === 'connected' && reading != null;
   const fetchedAt =
     reading && 'fetchedAt' in reading && typeof reading.fetchedAt === 'number'
       ? reading.fetchedAt
       : null;
+
+  // "Last update" = the wall-clock time we last successfully read the feeder,
+  // falling back to the last refresh attempt if we have no stored reading yet.
+  const lastUpdate = fetchedAt ?? lastRefreshAttempt;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
@@ -65,6 +89,27 @@ export default function FeederScreen() {
             {reading.level < LOW_THRESHOLD && (
               <Text style={styles.lowText}>Feed is low — refill soon</Text>
             )}
+            <Text style={styles.lastUpdateText}>
+              Last update:{' '}
+              {lastUpdate != null ? new Date(lastUpdate).toLocaleString() : 'never'}
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.refreshButton,
+                pressed && styles.refreshButtonPressed,
+                refreshing && styles.refreshButtonDisabled,
+              ]}
+              onPress={handleRefresh}
+              disabled={refreshing}
+              accessibilityRole="button"
+              accessibilityLabel="Refresh feeder reading"
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.refreshButtonText}>Refresh</Text>
+              )}
+            </Pressable>
             {reading.lastUpdate != null && (
               <Text style={styles.refreshText}>
                 Reading time: {new Date(reading.lastUpdate).toLocaleString()}
@@ -128,6 +173,32 @@ const styles = StyleSheet.create({
   refreshText: {
     color: '#666',
     fontSize: 13,
+  },
+  lastUpdateText: {
+    color: '#444',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  refreshButton: {
+    marginTop: 4,
+    minWidth: 120,
+    minHeight: 44,
+    paddingHorizontal: 24,
+    borderRadius: 22,
+    backgroundColor: '#208AEF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshButtonPressed: {
+    backgroundColor: '#1B72C4',
+  },
+  refreshButtonDisabled: {
+    opacity: 0.7,
+  },
+  refreshButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   warnText: {
     color: '#b8860b',
