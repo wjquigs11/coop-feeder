@@ -8,8 +8,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FeederScreen() {
   const router = useRouter();
-  const { status, reading, errorMessage, refreshFeeder, reloadFromStorage, lastBackgroundRun } =
-    useFeeder();
+  const {
+    status,
+    reading,
+    errorMessage,
+    refreshFeeder,
+    reloadFromStorage,
+    lastBackgroundRun,
+    lastRefreshAttempt,
+    refreshError,
+  } = useFeeder();
 
   // Reload the saved hostname + last reading every time this screen gains
   // focus (e.g. returning from Settings), then do a slim live refresh so the
@@ -64,12 +72,20 @@ export default function FeederScreen() {
             )}
             {fetchedAt != null && (
               <Text style={styles.refreshText}>
-                Last checked: {new Date(fetchedAt).toLocaleString()}
+                Last successful read: {new Date(fetchedAt).toLocaleString()}
               </Text>
             )}
             {lastBackgroundRun != null && (
               <Text style={styles.refreshText}>
                 Last background check: {new Date(lastBackgroundRun).toLocaleString()}
+              </Text>
+            )}
+            {refreshError != null && (
+              <Text style={styles.warnText}>
+                Couldn&apos;t reach feeder{lastRefreshAttempt != null
+                  ? ` at ${new Date(lastRefreshAttempt).toLocaleTimeString()}`
+                  : ''}
+                : {refreshError}
               </Text>
             )}
           </>
@@ -112,6 +128,12 @@ const styles = StyleSheet.create({
   refreshText: {
     color: '#666',
     fontSize: 13,
+  },
+  warnText: {
+    color: '#b8860b',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   errorText: {
     color: '#c0392b',

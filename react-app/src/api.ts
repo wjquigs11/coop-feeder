@@ -8,6 +8,7 @@
 //
 // React Native's networking does not support Server-Sent Events (the device's
 // /events stream) reliably, so this client polls /readings instead.
+import { resolveHost } from './mdns';
 
 /** A parsed reading from the feeder. */
 export type Reading = {
@@ -36,8 +37,30 @@ export function buildBaseUrl(hostname: string): string {
   return `http://${host}`;
 }
 
+/**
+ * Like buildBaseUrl, but resolves .local (mDNS) hostnames to an IP address so
+ * React Native's fetch can reach them (its HTTP stack does not resolve .local
+ * on Android). Raw IPs and regular DNS names pass through unchanged. May split
+ * an optional ":port" suffix off the host before resolving and re-attach it.
+ */
+export async function resolveBaseUrl(hostname: string): Promise<string> {
+  let host = hostname.trim();
+  if (host.length === 0) {
+    throw new Error('Enter a feeder hostname or IP address.');
+  }
+  host = host.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+
+  // Separate an optional :port so we only resolve the hostname portion.
+  const portMatch = host.match(/^(.*?)(:\d+)?$/);
+  const hostOnly = portMatch?.[1] ?? host;
+  const port = portMatch?.[2] ?? '';
+
+  const resolved = await resolveHost(hostOnly);
+  return `http://${resolved}${port}`;
+}
+
 /** Fetch with a timeout so a bad host doesn't hang forever. */
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 5000): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 10000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

@@ -8,6 +8,10 @@ data/wifi.json
 platformio.ini.*
 src.*
 
+# clangd / C++ build artifacts (generated from platformio.ini; machine-specific paths)
+compile_commands.json
+.cache/
+
 # react-app: exclude AI-assistant scaffold and stray tool settings (boilerplate)
 react-app/AGENTS.md
 react-app/CLAUDE.md

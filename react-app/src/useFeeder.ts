@@ -5,7 +5,7 @@
 import { useCallback, useState } from 'react';
 import { Keyboard } from 'react-native';
 
-import { buildBaseUrl, calibrate, fetchReading, sendBrowserTime, type Reading } from './api';
+import { calibrate, fetchReading, resolveBaseUrl, sendBrowserTime, type Reading } from './api';
 import { LOW_THRESHOLD, registerFeederBackgroundTask } from './backgroundTask';
 import { ensureNotificationPermission, sendLowFeedAlert } from './notifications';
 import {
@@ -73,12 +73,9 @@ export function useFeeder() {
     async (host: string = hostname): Promise<boolean> => {
       Keyboard.dismiss();
 
-      let baseUrl: string;
-      try {
-        baseUrl = buildBaseUrl(host);
-      } catch (err) {
+      if (host.trim().length === 0) {
         setStatus('error');
-        setErrorMessage(err instanceof Error ? err.message : 'Invalid hostname.');
+        setErrorMessage('Enter a feeder hostname or IP address.');
         return false;
       }
 
@@ -92,10 +89,11 @@ export function useFeeder() {
       // Ask for notification permission up front so the alert can fire later.
       await ensureNotificationPermission();
 
-      // Best-effort: give the device a real clock reference.
-      sendBrowserTime(baseUrl).catch(() => {});
-
       try {
+        // Resolve the host (mDNS .local -> IP) once, then reuse for both calls.
+        const baseUrl = await resolveBaseUrl(host);
+        // Best-effort: give the device a real clock reference.
+        sendBrowserTime(baseUrl).catch(() => {});
         const first = await fetchReading(baseUrl);
         await handleReading(first);
         await registerFeederBackgroundTask();
@@ -121,14 +119,8 @@ export function useFeeder() {
 
     setLastRefreshAttempt(Date.now());
 
-    let baseUrl: string;
     try {
-      baseUrl = buildBaseUrl(savedHost);
-    } catch (err) {
-      setRefreshError(err instanceof Error ? err.message : 'Invalid hostname.');
-      return;
-    }
-    try {
+      const baseUrl = await resolveBaseUrl(savedHost);
       const next = await fetchReading(baseUrl);
       await handleReading(next);
       setRefreshError(null);
@@ -143,7 +135,7 @@ export function useFeeder() {
   // Returns the device's confirmation message, or throws on failure.
   const calibrateFeeder = useCallback(
     async (which: 'empty' | 'full'): Promise<string> => {
-      const baseUrl = buildBaseUrl(hostname);
+      const baseUrl = await resolveBaseUrl(hostname);
       return calibrate(baseUrl, which);
     },
     [hostname],
@@ -160,5 +152,7 @@ export function useFeeder() {
     refreshFeeder,
     reloadFromStorage,
     lastBackgroundRun,
+    lastRefreshAttempt,
+    refreshError,
   };
 }

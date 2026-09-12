@@ -8,7 +8,7 @@ import * as BackgroundTask from 'expo-background-task';
 import * as Network from 'expo-network';
 import * as TaskManager from 'expo-task-manager';
 
-import { buildBaseUrl, fetchReading } from './api';
+import { fetchReading, resolveBaseUrl } from './api';
 import { sendLowFeedAlert } from './notifications';
 import {
   loadHostname,
@@ -56,7 +56,8 @@ TaskManager.defineTask(FEEDER_BACKGROUND_TASK, async () => {
     }
 
     // 2. Open the actual TCP connection to the feeder and read its state.
-    const baseUrl = buildBaseUrl(hostname);
+    //    resolveBaseUrl handles mDNS (.local -> IP) since fetch can't do it.
+    const baseUrl = await resolveBaseUrl(hostname);
     const reading = await fetchReading(baseUrl);
     await saveLastReading(reading);
     // Record when this automatic background check actually ran, separate from

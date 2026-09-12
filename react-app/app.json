@@ -37,7 +37,8 @@
           "image": "./assets/images/icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "./plugins/withZeroconf"
     ],
     "experiments": {
       "typedRoutes": true,
