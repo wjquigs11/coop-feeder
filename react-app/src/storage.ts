@@ -9,6 +9,10 @@ const KEY_HOSTNAME = 'coopfeeder.hostname';
 const KEY_LAST_READING = 'coopfeeder.lastReading';
 const KEY_WAS_LOW = 'coopfeeder.wasLow';
 const KEY_LAST_BG_RUN = 'coopfeeder.lastBackgroundRun';
+const KEY_BG_LOG = 'coopfeeder.backgroundLog';
+
+/** How many background-log breadcrumbs to keep (ring buffer). */
+const BG_LOG_MAX = 60;
 
 /** A reading plus the wall-clock time (ms) at which this app fetched it. */
 export type StoredReading = Reading & { fetchedAt: number };
@@ -64,4 +68,40 @@ export async function loadLastBackgroundRun(): Promise<number | null> {
   if (!raw) return null;
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) ? n : null;
+}
+
+/** A single timestamped breadcrumb from the background task. */
+export type BackgroundLogEntry = { at: number; message: string };
+
+/**
+ * Append a breadcrumb to the persisted background-task log (a small ring
+ * buffer). The background task runs outside the React UI and without an
+ * attached debugger, so these breadcrumbs let us inspect what happened (or
+ * whether the task ran at all) later, from the UI or via adb.
+ */
+export async function appendBackgroundLog(message: string): Promise<void> {
+  try {
+    const existing = await loadBackgroundLog();
+    const next: BackgroundLogEntry[] = [...existing, { at: Date.now(), message }];
+    // Keep only the most recent BG_LOG_MAX entries.
+    const trimmed = next.slice(-BG_LOG_MAX);
+    await AsyncStorage.setItem(KEY_BG_LOG, JSON.stringify(trimmed));
+  } catch {
+    // Logging must never throw into the task.
+  }
+}
+
+export async function loadBackgroundLog(): Promise<BackgroundLogEntry[]> {
+  const raw = await AsyncStorage.getItem(KEY_BG_LOG);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as BackgroundLogEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function clearBackgroundLog(): Promise<void> {
+  await AsyncStorage.removeItem(KEY_BG_LOG);
 }

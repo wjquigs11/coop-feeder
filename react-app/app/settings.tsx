@@ -1,10 +1,18 @@
+import { triggerBackgroundTaskForTesting } from '@/backgroundTask';
+import { BATTERY_HELP_TEXT, openBatteryOptimizationSettings } from '@/battery';
+import {
+  clearBackgroundLog,
+  loadBackgroundLog,
+  type BackgroundLogEntry,
+} from '@/storage';
 import { useFeeder } from '@/useFeeder';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -21,10 +29,42 @@ export default function SettingsScreen() {
   const [calibrating, setCalibrating] = useState<'empty' | 'full' | null>(null);
   const [calibrationMessage, setCalibrationMessage] = useState<string | null>(null);
 
-  // Prefill the field with the currently saved hostname.
-  useEffect(() => {
-    reloadFromStorage().catch(() => {});
-  }, [reloadFromStorage]);
+  // Background-task debugging state.
+  const [bgLog, setBgLog] = useState<BackgroundLogEntry[]>([]);
+  const [triggerMessage, setTriggerMessage] = useState<string | null>(null);
+
+  const refreshBgLog = useCallback(async () => {
+    setBgLog(await loadBackgroundLog());
+  }, []);
+
+  // Prefill the field with the currently saved hostname and load the log
+  // whenever the screen gains focus.
+  useFocusEffect(
+    useCallback(() => {
+      reloadFromStorage().catch(() => {});
+      refreshBgLog().catch(() => {});
+    }, [reloadFromStorage, refreshBgLog]),
+  );
+
+  const onTriggerBackgroundTask = async () => {
+    setTriggerMessage(null);
+    try {
+      const msg = await triggerBackgroundTaskForTesting();
+      setTriggerMessage(msg);
+    } catch (err) {
+      setTriggerMessage(err instanceof Error ? err.message : 'Trigger failed.');
+    }
+    // Give the worker a moment, then refresh the log.
+    setTimeout(() => {
+      refreshBgLog().catch(() => {});
+    }, 1500);
+  };
+
+  const onClearBgLog = async () => {
+    await clearBackgroundLog();
+    await refreshBgLog();
+    setTriggerMessage(null);
+  };
 
   const connecting = status === 'connecting';
   const busy = connecting || calibrating != null;
@@ -70,7 +110,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.heading}>Feeder connection</Text>
         <Text style={styles.help}>
           Enter your feeder&apos;s hostname or IP address, then tap Connect.
@@ -145,7 +185,49 @@ export default function SettingsScreen() {
         {calibrationMessage != null && (
           <Text style={styles.calMessage}>{calibrationMessage}</Text>
         )}
-      </View>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.heading}>Background updates</Text>
+        <Text style={styles.help}>{BATTERY_HELP_TEXT}</Text>
+
+        <Pressable style={styles.button} onPress={openBatteryOptimizationSettings}>
+          <Text style={styles.buttonText}>Allow background activity</Text>
+        </Pressable>
+
+        {__DEV__ && (
+          <>
+            <Pressable style={styles.secondaryButton} onPress={onTriggerBackgroundTask}>
+              <Text style={styles.secondaryButtonText}>Run background check now (debug)</Text>
+            </Pressable>
+            {triggerMessage != null && <Text style={styles.calMessage}>{triggerMessage}</Text>}
+          </>
+        )}
+
+        <View style={styles.logHeaderRow}>
+          <Text style={styles.subHeading}>Background log</Text>
+          <View style={styles.logHeaderButtons}>
+            <Pressable onPress={refreshBgLog} hitSlop={8}>
+              <Text style={styles.linkText}>Refresh</Text>
+            </Pressable>
+            <Pressable onPress={onClearBgLog} hitSlop={8}>
+              <Text style={styles.linkText}>Clear</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {bgLog.length === 0 ? (
+          <Text style={styles.help}>No background runs recorded yet.</Text>
+        ) : (
+          <View style={styles.logBox}>
+            {[...bgLog].reverse().map((entry, i) => (
+              <Text key={`${entry.at}-${i}`} style={styles.logLine}>
+                {new Date(entry.at).toLocaleString()} — {entry.message}
+              </Text>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -228,5 +310,49 @@ const styles = StyleSheet.create({
   calMessage: {
     fontSize: 14,
     color: '#444',
+  },
+  secondaryButton: {
+    backgroundColor: '#eef4f6',
+    borderWidth: 1,
+    borderColor: '#6FADC0',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    color: '#3d7c8f',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  subHeading: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  logHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  logHeaderButtons: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  linkText: {
+    color: '#3d7c8f',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  logBox: {
+    backgroundColor: '#f7f7f7',
+    borderRadius: 8,
+    padding: 10,
+    gap: 4,
+  },
+  logLine: {
+    fontSize: 12,
+    color: '#444',
+    fontFamily: 'monospace',
   },
 });
