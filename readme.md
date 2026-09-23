@@ -4,6 +4,10 @@ This project uses an ESP32 microcontroller connected to a load cell via an HX711
 
 Hanging the feeder in the coop helps to discourage pests (although rats can certainly jump up onto the feeder if they're really motivated).
 
+# **IMPORTANT:** 
+
+Do not build the react app on Dropbox. Compiling changes hundreds of files and Dropbox cannot sync and builds often fail. Check out the repo on a local drive for compilation.
+
 ## What It Does
 
 - **Load Cell Monitoring**: Measures the weight of the chicken feeder using an HX711 load cell amplifier
@@ -14,7 +18,7 @@ Hanging the feeder in the coop helps to discourage pests (although rats can cert
 - **SPIFFS Storage**: Stores configuration and logs in flash memory
 - **Double Reset Detection**: Reset WiFi configuration by pressing reset button twice within 10 seconds
 
-## Hardware 
+## Hardware
 
 - ESP32 development board (ESP32-DOIT-DEVKIT-V1) - sometimes a screw terminal board is easiest to use [Amazon Link](https://www.amazon.com/Development-Bluetooth-Microcontroller-ESP-WROOM-32-Breakout/dp/B0C8DBN29X/ref=sr_1_6)
 - [HX711 load cell amplifier](https://www.sparkfun.com/products/13879)
@@ -40,8 +44,9 @@ Hanging the feeder in the coop helps to discourage pests (although rats can cert
 3. Build and upload the filesystem image:
    - PlatformIO → Build Filesystem Image
    - PlatformIO → Upload Filesystem Image
-   I recommend the "Pro" version of WebSerial, but if you are using the free version, modify platformio.ini to match. You will also need to change header file references. 
+     I recommend the "Pro" version of WebSerial, but if you are using the free version, modify platformio.ini to match. You will also need to change header file references.
 4. Build and upload the firmware to your ESP32
+
 - Note that the executable is fairly large; almost 4MB, so you may want to comment out definitions in platformio.ini if you don't need e.g. WebSerial. ElegantOTA is commented out but available if you modify and want to update the code without many trips to the coop :-)
 
 ## First-Time Setup
@@ -57,11 +62,11 @@ Hanging the feeder in the coop helps to discourage pests (although rats can cert
 7. Fill the feeder to maximum capacity
    - Browse to `http://coopfeeder.local/config?full` or
    - Use WebSerial and enter the command `full`
-  Your specific values will be saved in flash on the ESP32
+     Your specific values will be saved in flash on the ESP32
 
   I had a bar load cell from another project. I fixed one end to a piece of flat fiberglass bar (and old sail batten), and clamped it in the coop. The feeder hangs from a split ring on the other end of the bar. The hanging-style load cell is probably easier to install.
 
-  <img src="images/feeder.jpg" alt="load cell" width="50%">
+<img src="images/feeder.jpg" alt="load cell" width="50%">
 
 ## Web Interface
 
@@ -76,9 +81,9 @@ You can configure the device using the WebSerial interface at `http://coopfeeder
 ### WebSerial Commands
 
 - `empty` - Calibrate the load cell with an empty feeder
-   'empty ?' shows current raw value for empty feeder
-   'empty <number>' sets raw value
-- `full` - Calibrate the load cell with a full feeder, 'full ?' and 'full <number>' work same as empty.
+  'empty ?' shows current raw value for empty feeder
+  'empty <number></number>' sets raw value
+- `full` - Calibrate the load cell with a full feeder, 'full ?' and 'full <number></number>' work same as empty.
 - `hostname [name]` - Change the device hostname
 - `timer [seconds]` - Change the web page update interval in seconds
 - `ls` - List files in SPIFFS
@@ -108,10 +113,10 @@ You can configure the device using the WebSerial interface at `http://coopfeeder
 ## Resetting WiFi Configuration
 
 To reset the WiFi configuration and return to the captive portal setup:
+
 1. Press the reset button on the ESP32
 2. Within 10 seconds, press the reset button again
 3. The device will clear WiFi settings and restart in AP mode
-
 
 ## Logs
 

@@ -48,6 +48,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "dev": "ANDROID_SERIAL=RFCR91266HT expo start --dev-client",
+    "logcat": "./scripts/logcat.sh /tmp/coopfeeder-logcat.log",
     "lint": "expo lint"
   },
   "private": true

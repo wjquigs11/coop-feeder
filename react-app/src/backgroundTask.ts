@@ -82,6 +82,11 @@ TaskManager.defineTask(FEEDER_BACKGROUND_TASK, async () => {
     // Record when this automatic background check actually ran, separate from
     // any foreground refresh, so the UI can display it.
     await saveLastBackgroundRun();
+    // Log every successful run so a background poll is observable in logcat
+    // (filter for "coopfeeder"); otherwise success is silent.
+    console.log(
+      `[coopfeeder] background poll ok: level=${reading.level}${reading.units} at ${new Date().toISOString()}`,
+    );
 
     // 3. Fire the low-feed alert only on the downward crossing below threshold.
     const isLow = reading.level < LOW_THRESHOLD;
