@@ -16,3 +16,6 @@ compile_commands.json
 react-app/AGENTS.md
 react-app/CLAUDE.md
 react-app/settings.json
+
+# openscad-case: derived PDF datasheet extraction dump (regenerable). Keep .scad, README, reference images, and print_parts/*.stl tracked.
+openscad-case/output/
