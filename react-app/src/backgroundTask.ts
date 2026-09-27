@@ -9,14 +9,12 @@ import * as Network from 'expo-network';
 import * as TaskManager from 'expo-task-manager';
 
 import { fetchReading, resolveBaseUrl } from './api';
-import { sendLowFeedAlert } from './notifications';
+import { maybeAlertLowFeed } from './notifications';
 import {
   appendBackgroundLog,
   loadHostname,
-  loadWasLow,
   saveLastBackgroundRun,
   saveLastReading,
-  saveWasLow,
 } from './storage';
 
 export const FEEDER_BACKGROUND_TASK = 'coopfeeder-poll';
@@ -88,14 +86,14 @@ TaskManager.defineTask(FEEDER_BACKGROUND_TASK, async () => {
       `[coopfeeder] background poll ok: level=${reading.level}${reading.units} at ${new Date().toISOString()}`,
     );
 
-    // 3. Fire the low-feed alert only on the downward crossing below threshold.
-    const isLow = reading.level < LOW_THRESHOLD;
-    const wasLow = await loadWasLow();
-    if (isLow && !wasLow) {
-      await bgLog(`low feed (${reading.level}%); sending alert`);
-      await sendLowFeedAlert(reading.level);
+    // 3. Decide whether to fire the low-feed alert. Shared with the foreground
+    //    path so both behave identically (edge-trigger + daily re-alert while
+    //    low). This is what lets the background task notify even if a prior
+    //    foreground refresh already observed the low level.
+    if (reading.level < LOW_THRESHOLD) {
+      await bgLog(`low feed (${reading.level}%); evaluating alert`);
     }
-    await saveWasLow(isLow);
+    await maybeAlertLowFeed(reading.level, LOW_THRESHOLD);
 
     await bgLog('task finished OK');
     return BackgroundTask.BackgroundTaskResult.Success;

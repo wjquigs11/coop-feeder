@@ -8,6 +8,7 @@ import type { Reading } from './api';
 const KEY_HOSTNAME = 'coopfeeder.hostname';
 const KEY_LAST_READING = 'coopfeeder.lastReading';
 const KEY_WAS_LOW = 'coopfeeder.wasLow';
+const KEY_LAST_LOW_ALERT = 'coopfeeder.lastLowAlert';
 const KEY_LAST_BG_RUN = 'coopfeeder.lastBackgroundRun';
 const KEY_BG_LOG = 'coopfeeder.backgroundLog';
 
@@ -51,6 +52,27 @@ export async function saveWasLow(wasLow: boolean): Promise<void> {
 
 export async function loadWasLow(): Promise<boolean> {
   return (await AsyncStorage.getItem(KEY_WAS_LOW)) === '1';
+}
+
+/**
+ * Wall-clock time (ms) of the last low-feed notification we actually delivered.
+ * Used to (a) re-alert while feed stays low if it's been long enough, and (b)
+ * keep the foreground and background paths from double-notifying. 0/null means
+ * no alert has been sent since feed was last above threshold.
+ */
+export async function saveLastLowAlert(when: number = Date.now()): Promise<void> {
+  await AsyncStorage.setItem(KEY_LAST_LOW_ALERT, String(when));
+}
+
+export async function loadLastLowAlert(): Promise<number | null> {
+  const raw = await AsyncStorage.getItem(KEY_LAST_LOW_ALERT);
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+export async function clearLastLowAlert(): Promise<void> {
+  await AsyncStorage.removeItem(KEY_LAST_LOW_ALERT);
 }
 
 /**

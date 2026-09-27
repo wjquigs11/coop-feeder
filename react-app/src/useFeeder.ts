@@ -7,15 +7,13 @@ import { Keyboard } from 'react-native';
 
 import { calibrate, fetchReading, resolveBaseUrl, sendBrowserTime, type Reading } from './api';
 import { LOW_THRESHOLD, registerFeederBackgroundTask } from './backgroundTask';
-import { ensureNotificationPermission, sendLowFeedAlert } from './notifications';
+import { ensureNotificationPermission, maybeAlertLowFeed } from './notifications';
 import {
   loadHostname,
   loadLastBackgroundRun,
   loadLastReading,
-  loadWasLow,
   saveHostname,
   saveLastReading,
-  saveWasLow,
   type StoredReading,
 } from './storage';
 
@@ -49,21 +47,15 @@ export function useFeeder() {
     setLastBackgroundRun(await loadLastBackgroundRun());
   }, []);
 
-  // Apply a fresh reading and persist it, firing the low-feed alert only on the
-  // downward crossing below the threshold (the "was low" flag is persisted so
-  // this stays consistent with the background task).
+  // Apply a fresh reading and persist it. The low-feed alert decision is
+  // delegated to the shared maybeAlertLowFeed() so the foreground and
+  // background paths behave identically and don't fight over the same edge.
   const handleReading = useCallback(async (next: Reading) => {
     setReading(next);
     setStatus('connected');
     setErrorMessage(null);
     await saveLastReading(next);
-
-    const isLow = next.level < LOW_THRESHOLD;
-    const wasLow = await loadWasLow();
-    if (isLow && !wasLow) {
-      await sendLowFeedAlert(next.level);
-    }
-    await saveWasLow(isLow);
+    await maybeAlertLowFeed(next.level, LOW_THRESHOLD);
   }, []);
 
   // Connect to the given (or current) hostname: validate, persist, do one
