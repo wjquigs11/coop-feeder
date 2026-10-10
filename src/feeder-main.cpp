@@ -147,6 +147,9 @@ void setup() {
     //}
   }
 #endif // WIFI
+#ifdef BLE
+  setupBLE();
+#endif
   log::flush();
 } // setup()
 
@@ -193,7 +196,9 @@ void loop() {
       if (loadcell < 0) loadcell = 0;
       newDataReady = false;
       log::toAll("[" + String(now) + "] raw: " + String(raw) + " scaled: " + String(loadcell));
-#if WIFI
+#if defined(WIFI) || defined(BLE)
+      // Populate the shared readings JSON (consumed by both the WiFi/SSE push
+      // and the BLE notify) whenever either transport is built in.
       readings["loadcell"] = String(loadcell);
       readings["units"] = "%";
       
@@ -210,8 +215,13 @@ void loop() {
       
       // Send the timestamp in milliseconds since epoch (Unix timestamp)
       readings["lastUpdate"] = String(lastUpdate);
-      
+#endif
+#ifdef WIFI
       events.send(getSensorReadings().c_str(),"new_readings" ,millis());
+#endif
+#ifdef BLE
+      // Push the same JSON payload to any subscribed BLE client.
+      blePushReading();
 #endif
     }
   }

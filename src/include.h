@@ -59,6 +59,23 @@ void deleteWifiCredentials(const char* ssid);
 #endif // ifndef NETWIZARD
 #endif
 
+#ifdef BLE
+// BLE (NimBLE) GATT interface. Mirrors the WiFi path: the feeder advertises a
+// custom service and pushes the same getSensorReadings() JSON string as a
+// notification on the Reading characteristic whenever a new reading is taken.
+// UUIDs are random 128-bit; the app (react-app/src/ble.ts) must match these.
+// NOTE: ble.cpp intentionally does NOT include this header (NimBLE's internal
+// `struct log` collides with logto.h's `class log`), so it carries its OWN copy
+// of these UUID macros — keep the two in sync. These copies document the
+// contract for everything that includes include.h.
+#define BLE_SERVICE_UUID        "e3a1f6c0-2b7d-4c1a-9f3e-0a1b2c3d4e5f"
+#define BLE_READING_CHAR_UUID   "e3a1f6c1-2b7d-4c1a-9f3e-0a1b2c3d4e5f"
+void setupBLE();
+// Push the current getSensorReadings() JSON to subscribed clients (no-op if
+// BLE isn't started or nobody is connected/subscribed).
+void blePushReading();
+#endif
+
 #ifdef WEBSERIAL
 #include <WebSerialPro.h>
 void WebSerialonMessage(uint8_t *data, size_t len);

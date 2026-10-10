@@ -71,3 +71,12 @@ bool log::initConsole(String conslogName) {
   if (!consLog) return false;
   return consLog.println("ESP console log.") > 0;
 }
+
+// Logging bridge for src/ble.cpp. NimBLE's internal headers define a global
+// `struct log` that collides with this project's `class log`, so ble.cpp cannot
+// include logto.h (or include.h, which pulls it in). It calls this free
+// function instead, which forwards to log::toAll here where `class log` is in
+// scope and NimBLE's headers are not.
+void bleLog(const char* s) {
+  log::toAll(s);
+}
