@@ -48,6 +48,7 @@ HX711 LoadCell;
 unsigned long t = 0;
 float calibrationValue=1.0; // calibration value (see example file "Calibration.ino")
 long loadcell=0;
+bool loadcellSerialOutput = false;
 long empty_offset = 0; // offset value for empty feeder
 long full_raw = -420000; // offset value for full feeder (remember it's in tension so "reverse")
 
@@ -160,7 +161,8 @@ void loop() {
 #ifdef NETWIZARD
   NW.loop();
 #endif
-  now = millis();
+  now = millis();  // global (shared with wifi.cpp) — do not redeclare locally
+  static unsigned long lastLoadcellSerialOutput = 0;
   static unsigned long lastEventTime, lastTimeTime, startTime;
 #ifdef WIFI
   wifiCheck();
@@ -214,6 +216,10 @@ void loop() {
       events.send(getSensorReadings().c_str(),"new_readings" ,millis());
 #endif
     }
+  }
+  if (loadcellSerialOutput && now - lastLoadcellSerialOutput >= 500) {
+    lastLoadcellSerialOutput = now;
+    Serial.println(loadcell);
   }
   // Serial/WebSerial command handler
 #ifdef WEBSERIAL
