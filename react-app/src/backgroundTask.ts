@@ -22,10 +22,10 @@ export const FEEDER_BACKGROUND_TASK = 'coopfeeder-poll';
 // expo-background-task uses minutes; the OS treats this as a MINIMUM and picks
 // the actual run time. WorkManager's practical floor is 15 minutes.
 // In development we use a short interval so the worker can be observed firing
-// without waiting a full day; production polls about once a day.
-const PROD_INTERVAL_MINUTES = 24 * 60;
+// without waiting a full day; production polls every 30 minutes.
+const PROD_INTERVAL_MINUTES = 30;
 const DEV_INTERVAL_MINUTES = 15;
-const INTERVAL_MINUTES = __DEV__ ? DEV_INTERVAL_MINUTES : PROD_INTERVAL_MINUTES;
+export const INTERVAL_MINUTES = __DEV__ ? DEV_INTERVAL_MINUTES : PROD_INTERVAL_MINUTES;
 
 export const LOW_THRESHOLD = 10;
 

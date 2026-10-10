@@ -1,4 +1,4 @@
-import { triggerBackgroundTaskForTesting } from '@/backgroundTask';
+import { INTERVAL_MINUTES, triggerBackgroundTaskForTesting } from '@/backgroundTask';
 import { BATTERY_HELP_TEXT, openBatteryOptimizationSettings } from '@/battery';
 import {
   clearBackgroundLog,
@@ -193,6 +193,9 @@ export default function SettingsScreen() {
         <View style={styles.divider} />
 
         <Text style={styles.heading}>Background updates</Text>
+        <Text style={styles.intervalText}>
+          Check interval: every {INTERVAL_MINUTES} min (minimum; the OS may run it less often)
+        </Text>
         <Text style={styles.help}>{BATTERY_HELP_TEXT}</Text>
 
         <Pressable style={styles.button} onPress={openBatteryOptimizationSettings}>
@@ -258,6 +261,11 @@ const styles = StyleSheet.create({
   help: {
     fontSize: 14,
     color: '#666',
+  },
+  intervalText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
   },
   field: {
     flexDirection: 'row',
