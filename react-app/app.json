@@ -39,6 +39,14 @@
           "imageWidth": 76
         }
       ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "This app connects to your coop feeder over Bluetooth to read the feed level."
+        }
+      ],
       "./plugins/withZeroconf"
     ],
     "experiments": {

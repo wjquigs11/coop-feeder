@@ -22,8 +22,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { hostname, setHostname, status, errorMessage, connect, calibrateFeeder, reloadFromStorage } =
-    useFeeder();
+  const {
+    hostname,
+    setHostname,
+    status,
+    errorMessage,
+    connect,
+    calibrateFeeder,
+    reloadFromStorage,
+    connectBle,
+    disconnectBle,
+    bleStatus,
+    bleError,
+  } = useFeeder();
 
   // Which calibration (if any) is currently running.
   const [calibrating, setCalibrating] = useState<'empty' | 'full' | null>(null);
@@ -68,6 +79,16 @@ export default function SettingsScreen() {
 
   const connecting = status === 'connecting';
   const busy = connecting || calibrating != null;
+  const bleConnecting = bleStatus === 'connecting';
+  const bleConnected = bleStatus === 'connected';
+
+  const onBleToggle = async () => {
+    if (bleConnected) {
+      await disconnectBle();
+    } else {
+      await connectBle();
+    }
+  };
 
   const onConnect = async () => {
     const ok = await connect(hostname);
@@ -150,6 +171,36 @@ export default function SettingsScreen() {
 
         {status === 'error' && (
           <Text style={styles.errorText}>{errorMessage ?? 'Something went wrong.'}</Text>
+        )}
+
+        <View style={styles.divider} />
+
+        <Text style={styles.heading}>Bluetooth</Text>
+        <Text style={styles.help}>
+          Connect to the feeder directly over Bluetooth when you&apos;re near the coop. No
+          WiFi or hostname needed; range is only a few meters.
+        </Text>
+
+        <Pressable
+          style={[styles.button, bleConnecting && styles.buttonDisabled]}
+          onPress={onBleToggle}
+          disabled={bleConnecting}
+        >
+          {bleConnecting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>
+              {bleConnected ? 'Disconnect Bluetooth' : 'Connect via Bluetooth'}
+            </Text>
+          )}
+        </Pressable>
+
+        <Text style={styles.intervalText}>
+          Bluetooth: {bleStatus}
+          {bleConnected ? ' (receiving live readings)' : ''}
+        </Text>
+        {bleStatus === 'error' && bleError != null && (
+          <Text style={styles.errorText}>{bleError}</Text>
         )}
 
         <View style={styles.divider} />

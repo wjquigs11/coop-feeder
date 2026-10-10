@@ -71,13 +71,14 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
 }
 
 /** Fetch and parse the current reading from the device. */
-export async function fetchReading(baseUrl: string): Promise<Reading> {
-  const res = await fetchWithTimeout(`${baseUrl}/readings`);
-  if (!res.ok) {
-    throw new Error(`Feeder responded with HTTP ${res.status}.`);
-  }
-  const raw = (await res.json()) as Record<string, unknown>;
-
+/**
+ * Parse the feeder's readings object into a Reading. The device sends all
+ * values as JSON strings (e.g. { loadcell: "72", units: "%", lastUpdate: "..." }).
+ * Shared by the HTTP path (fetchReading) and the BLE path (src/ble.ts), which
+ * both receive the identical JSON payload from getSensorReadings() on the
+ * device.
+ */
+export function parseReadingObject(raw: Record<string, unknown>): Reading {
   const levelNum = Number.parseInt(String(raw.loadcell ?? ''), 10);
   const level = Number.isFinite(levelNum) ? Math.max(0, Math.min(100, levelNum)) : 0;
 
@@ -92,6 +93,20 @@ export async function fetchReading(baseUrl: string): Promise<Reading> {
   }
 
   return { level, units, lastUpdate };
+}
+
+/** Parse a raw readings JSON string (as delivered over BLE) into a Reading. */
+export function parseReadingJson(json: string): Reading {
+  return parseReadingObject(JSON.parse(json) as Record<string, unknown>);
+}
+
+export async function fetchReading(baseUrl: string): Promise<Reading> {
+  const res = await fetchWithTimeout(`${baseUrl}/readings`);
+  if (!res.ok) {
+    throw new Error(`Feeder responded with HTTP ${res.status}.`);
+  }
+  const raw = (await res.json()) as Record<string, unknown>;
+  return parseReadingObject(raw);
 }
 
 /**

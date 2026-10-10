@@ -2,11 +2,12 @@
 // displays the gauge) and the settings screen (which edits the hostname and
 // connects). Keeping it in one hook avoids duplicating the connect/persist
 // flow across screens.
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard } from 'react-native';
 
 import { calibrate, fetchReading, resolveBaseUrl, sendBrowserTime, type Reading } from './api';
 import { LOW_THRESHOLD, registerFeederBackgroundTask } from './backgroundTask';
+import { subscribeReadings, type BleSubscription } from './ble';
 import { ensureNotificationPermission, maybeAlertLowFeed } from './notifications';
 import {
   loadHostname,
@@ -32,6 +33,10 @@ export function useFeeder() {
   // visible instead of leaving a stale timestamp with no explanation.
   const [lastRefreshAttempt, setLastRefreshAttempt] = useState<number | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  // BLE (foreground live link) state. Separate from the WiFi status above.
+  const [bleStatus, setBleStatus] = useState<Status>('idle');
+  const [bleError, setBleError] = useState<string | null>(null);
+  const bleSubRef = useRef<BleSubscription | null>(null);
 
   // Restore the saved hostname, last stored reading, and last background-run
   // time (e.g. from the background task) so the gauge isn't blank. Safe to call
@@ -123,6 +128,61 @@ export function useFeeder() {
     }
   }, [handleReading]);
 
+  // Connect to the feeder over Bluetooth (foreground live link). Scans for the
+  // feeder in range, subscribes to the Reading characteristic, and feeds each
+  // notification through the same handleReading() path as WiFi, so the gauge
+  // and low-feed alert work identically. Short-range: only succeeds when the
+  // phone is near the coop. Returns true once subscribed.
+  const connectBle = useCallback(async (): Promise<boolean> => {
+    // Tear down any existing subscription first.
+    if (bleSubRef.current) {
+      await bleSubRef.current.stop().catch(() => {});
+      bleSubRef.current = null;
+    }
+    setBleStatus('connecting');
+    setBleError(null);
+    // Ensure notification permission so a low reading over BLE can alert.
+    await ensureNotificationPermission();
+    try {
+      const sub = await subscribeReadings(
+        (next) => {
+          handleReading(next).catch(() => {});
+        },
+        (err) => {
+          setBleStatus('error');
+          setBleError(err.message);
+        },
+      );
+      bleSubRef.current = sub;
+      setBleStatus('connected');
+      return true;
+    } catch (err) {
+      setBleStatus('error');
+      setBleError(err instanceof Error ? err.message : 'Could not connect over Bluetooth.');
+      return false;
+    }
+  }, [handleReading]);
+
+  // Stop the BLE live link and release the connection.
+  const disconnectBle = useCallback(async (): Promise<void> => {
+    if (bleSubRef.current) {
+      await bleSubRef.current.stop().catch(() => {});
+      bleSubRef.current = null;
+    }
+    setBleStatus('idle');
+    setBleError(null);
+  }, []);
+
+  // Drop any live BLE link when the hook unmounts.
+  useEffect(() => {
+    return () => {
+      if (bleSubRef.current) {
+        bleSubRef.current.stop().catch(() => {});
+        bleSubRef.current = null;
+      }
+    };
+  }, []);
+
   // Run an empty/full calibration against the currently entered feeder.
   // Returns the device's confirmation message, or throws on failure.
   const calibrateFeeder = useCallback(
@@ -146,5 +206,9 @@ export function useFeeder() {
     lastBackgroundRun,
     lastRefreshAttempt,
     refreshError,
+    connectBle,
+    disconnectBle,
+    bleStatus,
+    bleError,
   };
 }

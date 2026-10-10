@@ -51,6 +51,14 @@ class FeederServerCallbacks : public NimBLEServerCallbacks {
   }
 };
 
+// Set the Reading characteristic to a string payload using the explicit
+// (bytes, length) overload. NimBLE's templated setValue() can otherwise bind a
+// bare pointer/other type to the raw-memory path and send a few junk bytes
+// instead of the JSON (observed: a 4-byte float instead of the readings JSON).
+static void setReadingValue(const String& s) {
+  readingChar->setValue(reinterpret_cast<const uint8_t*>(s.c_str()), s.length());
+}
+
 void setupBLE() {
   // Advertise under the configured hostname so the app can find it by name.
   String devName = host.length() ? host : String("coopfeeder");
@@ -69,7 +77,7 @@ void setupBLE() {
   // Seed with the current reading so a client that reads on connect (before the
   // next notify) gets a valid value immediately, mirroring the SSE "send
   // current reading on connect" behaviour.
-  readingChar->setValue(getSensorReadings().c_str());
+  setReadingValue(getSensorReadings());
 
   service->start();
 
@@ -85,8 +93,7 @@ void setupBLE() {
 void blePushReading() {
   if (!bleStarted || readingChar == nullptr) return;
   // Keep the readable value current even with no subscribers, then notify.
-  String json = getSensorReadings();
-  readingChar->setValue(json.c_str());
+  setReadingValue(getSensorReadings());
   readingChar->notify();
 }
 
