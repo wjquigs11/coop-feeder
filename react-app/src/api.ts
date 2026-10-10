@@ -95,9 +95,19 @@ export function parseReadingObject(raw: Record<string, unknown>): Reading {
   return { level, units, lastUpdate };
 }
 
-/** Parse a raw readings JSON string (as delivered over BLE) into a Reading. */
+/** Parse a raw readings JSON string (as delivered by the HTTP API) into a Reading. */
 export function parseReadingJson(json: string): Reading {
   return parseReadingObject(JSON.parse(json) as Record<string, unknown>);
+}
+
+/**
+ * Build a Reading from a single feed-level byte (0-100), as delivered over BLE.
+ * Units are always "%" and the caller stamps its own read time (the device
+ * doesn't send a timestamp over BLE).
+ */
+export function readingFromLevel(level: number): Reading {
+  const clamped = Number.isFinite(level) ? Math.max(0, Math.min(100, Math.round(level))) : 0;
+  return { level: clamped, units: '%', lastUpdate: null };
 }
 
 export async function fetchReading(baseUrl: string): Promise<Reading> {

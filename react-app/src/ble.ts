@@ -13,7 +13,7 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import { BleManager, State, type Device } from 'react-native-ble-plx';
 
-import { parseReadingJson, type Reading } from './api';
+import { readingFromLevel, type Reading } from './api';
 
 // Must match the firmware (src/ble.cpp / src/include.h).
 export const BLE_SERVICE_UUID = 'e3a1f6c0-2b7d-4c1a-9f3e-0a1b2c3d4e5f';
@@ -87,60 +87,17 @@ async function ensureBluetoothOn(): Promise<void> {
   });
 }
 
-// Strict base64 -> binary-string decoder. Only consumes valid base64 input;
-// returns null if the input isn't well-formed base64 (so we can fall back to
-// treating the value as an already-decoded string).
+// The Reading characteristic carries a single byte: the feed level (0-100).
+// ble-plx delivers characteristic values base64-encoded, so decode the first
+// byte. One byte always fits a single BLE packet (no MTU negotiation needed).
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-function base64ToString(b64: string): string | null {
-  const clean = b64.replace(/=+$/, '');
-  // If any character is outside the base64 alphabet, it isn't base64.
-  for (let i = 0; i < clean.length; i++) {
-    if (B64.indexOf(clean[i]) < 0) return null;
-  }
-  let bits = 0;
-  let acc = 0;
-  let out = '';
-  for (let i = 0; i < clean.length; i++) {
-    acc = (acc << 6) | B64.indexOf(clean[i]);
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      out += String.fromCharCode((acc >> bits) & 0xff);
-    }
-  }
-  return out;
-}
-
-/**
- * Decode a characteristic value into the readings JSON string.
- *
- * ble-plx is documented to deliver values base64-encoded, but behaviour has
- * varied across versions/platforms, so we're defensive: if the value already
- * looks like JSON (starts with '{'), use it as-is; otherwise base64-decode it;
- * if the decode doesn't yield JSON, fall back to the raw value. We also log the
- * raw/decoded forms so a mismatch is diagnosable from logcat.
- */
-function decodeCharacteristic(value: string | null | undefined): string {
+function decodeLevelByte(value: string | null | undefined): number {
   if (!value) throw new Error('Empty BLE characteristic value.');
-
-  const trimmed = value.trim();
-  // Already-decoded JSON?
-  if (trimmed.startsWith('{')) {
-    console.log('[coopfeeder-ble] characteristic value was plain JSON');
-    return trimmed;
-  }
-
-  const decoded = base64ToString(trimmed);
-  if (decoded && decoded.trim().startsWith('{')) {
-    return decoded.trim();
-  }
-
-  // Neither plain JSON nor base64-of-JSON — log both forms for diagnosis.
-  console.log(
-    `[coopfeeder-ble] unrecognized characteristic value. raw="${value}" decoded="${decoded ?? '(not base64)'}"`,
-  );
-  // Best effort: return whatever we have so the error names the real content.
-  return decoded ?? trimmed;
+  // Decode just the first base64 group (>= 2 chars) -> first output byte.
+  const a = B64.indexOf(value[0]);
+  const b = B64.indexOf(value[1]);
+  if (a < 0 || b < 0) throw new Error('Malformed BLE characteristic value.');
+  return ((a << 2) | (b >> 4)) & 0xff;
 }
 
 /**
@@ -188,6 +145,22 @@ async function connectAndDiscover(device: Device): Promise<Device> {
 }
 
 /**
+ * Read the Reading characteristic via the discovered characteristic OBJECT
+ * (rather than the device.readCharacteristicForService helper), and log the raw
+ * base64 so we can see exactly what ble-plx returns. Returns the base64 value.
+ */
+async function readReadingCharacteristic(device: Device): Promise<string | null> {
+  const services = await device.services();
+  const svc = services.find((s) => s.uuid.toLowerCase() === BLE_SERVICE_UUID);
+  if (!svc) throw new Error('Feeder BLE service not found after connect.');
+  const chars = await svc.characteristics();
+  const ch = chars.find((c) => c.uuid.toLowerCase() === BLE_READING_CHAR_UUID);
+  if (!ch) throw new Error('Feeder Reading characteristic not found.');
+  const read = await ch.read();
+  return read.value;
+}
+
+/**
  * Opportunistic single read: scan, connect, read the Reading characteristic
  * once, parse it, and disconnect. This is the path a future background task
  * will call when it wakes and the phone is near the coop. Throws if the feeder
@@ -198,11 +171,8 @@ export async function readOnce(): Promise<Reading> {
   let connected: Device | null = null;
   try {
     connected = await connectAndDiscover(device);
-    const ch = await connected.readCharacteristicForService(
-      BLE_SERVICE_UUID,
-      BLE_READING_CHAR_UUID,
-    );
-    return parseReadingJson(decodeCharacteristic(ch.value));
+    const ch = await readReadingCharacteristic(connected);
+    return readingFromLevel(decodeLevelByte(ch));
   } finally {
     // Always release the link; proximity reads should not hold a connection.
     if (connected) {
@@ -229,11 +199,8 @@ export async function subscribeReadings(
 
   // Seed with the current value so the UI populates before the first notify.
   try {
-    const initial = await connected.readCharacteristicForService(
-      BLE_SERVICE_UUID,
-      BLE_READING_CHAR_UUID,
-    );
-    onReading(parseReadingJson(decodeCharacteristic(initial.value)));
+    const initial = await readReadingCharacteristic(connected);
+    onReading(readingFromLevel(decodeLevelByte(initial)));
   } catch {
     // Non-fatal: notifications will populate shortly.
   }
@@ -247,7 +214,7 @@ export async function subscribeReadings(
         return;
       }
       try {
-        if (ch?.value) onReading(parseReadingJson(decodeCharacteristic(ch.value)));
+        if (ch?.value) onReading(readingFromLevel(decodeLevelByte(ch.value)));
       } catch (e) {
         onError?.(e instanceof Error ? e : new Error(String(e)));
       }

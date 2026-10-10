@@ -31,7 +31,7 @@
 #define BLE_SERVICE_UUID        "e3a1f6c0-2b7d-4c1a-9f3e-0a1b2c3d4e5f"
 #define BLE_READING_CHAR_UUID   "e3a1f6c1-2b7d-4c1a-9f3e-0a1b2c3d4e5f"
 extern String host;                 // configured device/mDNS hostname
-extern String getSensorReadings();  // the readings JSON (defined in webserver.cpp)
+extern long loadcell;               // scaled feed level 0-100 (feeder-main.cpp)
 extern void bleLog(const char* s);  // logging bridge (defined in logto.cpp)
 static inline void bleLog(const String& s) { bleLog(s.c_str()); }
 
@@ -51,16 +51,17 @@ class FeederServerCallbacks : public NimBLEServerCallbacks {
   }
 };
 
-// Set the Reading characteristic to a string payload using the explicit
-// (bytes, length) overload. NimBLE's templated setValue() can otherwise bind a
-// bare pointer/other type to the raw-memory path and send a few junk bytes
-// instead of the JSON (observed: a 4-byte float instead of the readings JSON).
-static void setReadingValue(const String& s) {
-  // Diagnostic: log exactly what we're about to publish and its length, so a
-  // mismatch between the JSON and what the client receives is visible on the
-  // device side (serial / WebSerial).
-  bleLog("[BLE] setReadingValue len=" + String(s.length()) + " val=" + s);
-  readingChar->setValue(reinterpret_cast<const uint8_t*>(s.c_str()), s.length());
+// Publish the feed level as a single byte (0-100). BLE carries just the level,
+// not the full web-API JSON: it's one value, always fits one packet (no MTU
+// negotiation needed), and the phone stamps its own read time. The explicit
+// (bytes, length) overload avoids NimBLE's templated setValue() reinterpreting
+// the argument as raw memory.
+static void setReadingValue() {
+  long v = loadcell;
+  if (v < 0) v = 0;
+  if (v > 100) v = 100;
+  uint8_t level = (uint8_t)v;
+  readingChar->setValue(&level, 1);
 }
 
 void setupBLE() {
@@ -78,12 +79,15 @@ void setupBLE() {
   readingChar = service->createCharacteristic(
     BLE_READING_CHAR_UUID,
     NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  // Seed with the current reading so a client that reads on connect (before the
-  // next notify) gets a valid value immediately, mirroring the SSE "send
-  // current reading on connect" behaviour.
-  setReadingValue(getSensorReadings());
+  // Seed with the current level so a client that reads on connect gets a valid
+  // value immediately.
+  setReadingValue();
 
   service->start();
+  // Set the value again AFTER start(); some NimBLE versions finalize the
+  // attribute value store during start(), so a pre-start setValue() can be
+  // served from a stale buffer on the first read.
+  setReadingValue();
 
   NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
   adv->addServiceUUID(BLE_SERVICE_UUID);
@@ -97,7 +101,7 @@ void setupBLE() {
 void blePushReading() {
   if (!bleStarted || readingChar == nullptr) return;
   // Keep the readable value current even with no subscribers, then notify.
-  setReadingValue(getSensorReadings());
+  setReadingValue();
   readingChar->notify();
 }
 
