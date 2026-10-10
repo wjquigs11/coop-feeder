@@ -56,6 +56,10 @@ class FeederServerCallbacks : public NimBLEServerCallbacks {
 // bare pointer/other type to the raw-memory path and send a few junk bytes
 // instead of the JSON (observed: a 4-byte float instead of the readings JSON).
 static void setReadingValue(const String& s) {
+  // Diagnostic: log exactly what we're about to publish and its length, so a
+  // mismatch between the JSON and what the client receives is visible on the
+  // device side (serial / WebSerial).
+  bleLog("[BLE] setReadingValue len=" + String(s.length()) + " val=" + s);
   readingChar->setValue(reinterpret_cast<const uint8_t*>(s.c_str()), s.length());
 }
 
