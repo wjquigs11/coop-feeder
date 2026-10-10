@@ -2,7 +2,7 @@
 Basic chicken coop feeder weight monitor based on ESP32
 Uses a load cell and HX711 ADC
 To use, first go to PlatformIO->Build Filesystem Image, then Upload Filesystem Image, then build and upload to your ESP32
-At first upload, it will start the NetWizard captive portal to scan and select wifi
+At first upload, it will start the captive portal to scan and select wifi
 After reboot, it will connect to your wifi
 To reset wifi connection (go back to captive portal), press reset on the ESP32 twice within 10 seconds (double reset detector)
 Usage:
@@ -13,7 +13,6 @@ There are several ways to tare:
   or click the "calibrate empty" button on the web interface
 You can also change the hostname and the response time for the web interface (default 1 second) using /config
 A console log is stored on LittleFS; access it via http://coopfeeder.local/console.log
-This repo uses the WebSerial and NetWizard libraries from ayusharma, as well as the ElegantOTA library for development
 */
 
 #include "include.h"
@@ -47,7 +46,7 @@ HX711 LoadCell;
 
 unsigned long t = 0;
 float calibrationValue=1.0; // calibration value (see example file "Calibration.ino")
-long loadcell=0;
+long loadcell,raw;
 bool loadcellSerialOutput = false;
 long empty_offset = 0; // offset value for empty feeder
 long full_raw = -420000; // offset value for full feeder (remember it's in tension so "reverse")
@@ -189,7 +188,7 @@ void loop() {
       newDataReady = true;
     }
     if (newDataReady) {
-      long raw = LoadCell.read();
+      raw = LoadCell.read();
       loadcell = map(raw, empty_offset, full_raw, 0, 100);
       if (loadcell > 100) loadcell = 100;
       if (loadcell < 0) loadcell = 0;
@@ -219,7 +218,7 @@ void loop() {
   }
   if (loadcellSerialOutput && now - lastLoadcellSerialOutput >= 500) {
     lastLoadcellSerialOutput = now;
-    Serial.println(loadcell);
+    Serial.printf("[%lu] raw: %ld scaled: %ld\n", now, raw, loadcell);
   }
   // Serial/WebSerial command handler
 #ifdef WEBSERIAL

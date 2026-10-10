@@ -209,18 +209,22 @@ void handleCommand(String dataS) {
   // ─── App-specific commands (coop-feeder) ───────────────────────────────────
 
   if (cmd.startsWith("timer")) {
-    if (wordCount > 1) {
+    if (wordCount == 2) {
       // argument is seconds, timerDelay is msec
       timerDelay = atoi(words[1].c_str()) * 1000;
-      if (timerDelay < 200) timerDelay = 200;
-      if (timerDelay > 60000) timerDelay = 60000;
-      pendingTimerDelay = timerDelay;
-      pendingTimerChange = true;
-      pendingSaveToPrefs = true;
+    } else if (words[1] == "m" && wordCount > 2) {
+      // 'timerdelay m 500' indicates milliseconds
+      timerDelay = atoi(words[2].c_str());
+    } else {
+      snprintf(logbuf, LOGBUF_SIZE, "timerDelay: %d ms", timerDelay);
+      log::toAll(logbuf);
+      return;
     }
-    snprintf(logbuf, LOGBUF_SIZE, "timerDelay: %d ms", timerDelay);
-    log::toAll(logbuf);
-    return;
+    if (timerDelay < 200) timerDelay = 200;
+    if (timerDelay > 60000) timerDelay = 60000;
+    pendingTimerDelay = timerDelay;
+    pendingTimerChange = true;
+    pendingSaveToPrefs = true;
   }
 
   if (cmd == "loadcell") {
