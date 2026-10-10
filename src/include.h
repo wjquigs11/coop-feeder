@@ -18,6 +18,8 @@ extern WebServer server;
 //extern EventSource events;
 #endif // ELEGANTOTA_USE_ASYNC_WEBSERVER
 extern bool serverStarted;
+extern bool wifiConnected;
+extern unsigned long wifiStartTime;
 extern String host;
 extern JsonDocument readings;
 extern int timerDelay;
@@ -28,6 +30,33 @@ void resetWifi();
 void wifiCheck();
 void startWebServer();
 String getSensorReadings();
+
+// WiFi credential handling (ported from 0-wifi-template, active when WIFI && !NETWIZARD)
+#ifndef NETWIZARD
+#include <DNSServer.h>
+#define DNS_INTERVAL 300
+#define MAX_WIFI_NETWORKS 5
+struct WiFiCredentials {
+  String ssid;
+  String password;
+  String ip;
+  String gateway;
+};
+extern WiFiCredentials wifi[];
+extern int wifiCount;
+extern bool gotWifiCreds;
+extern DNSServer dnsServer;
+extern TimerHandle_t connectTimer;
+extern String newWifiSsid;
+extern String newWifiPass;
+void checkLittleFS();
+bool readWiFiCredentials();
+void startPortal();
+void onWiFiConnected();
+void onWiFiDisconnected();
+void saveNewWifiCredentials(const char* ssid, const char* password);
+void deleteWifiCredentials(const char* ssid);
+#endif // ifndef NETWIZARD
 #endif
 
 #ifdef WEBSERIAL
@@ -69,6 +98,10 @@ void configTare(const String& type);
 extern unsigned long lastTime;
 extern int timerDelay;
 extern int minReadRate;
+// loopDelay: delay at end of each loop() iteration; raised to DNS_INTERVAL during captive portal
+extern int loopDelay;
+// global millis() snapshot, shared with wifi.cpp (wifiStartTime = now)
+extern unsigned long now;
 // store last update based on clock time from client browser
 extern unsigned long lastUpdate, updateTime;
 

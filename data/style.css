@@ -156,3 +156,28 @@ canvas {
 }
 
 
+
+/* ─── Wi-Fi captive portal (wifimanager.html) ─────────────────────────── */
+.wifi-notify {
+  display: none;
+  background: #0A1128;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 6px;
+  margin-top: 10px;
+  font-size: 1.1rem;
+}
+.wifi-delete-btn {
+  background-color: #F44336;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.wifi-ssid-row {
+  display: block;
+  text-align: left;
+  margin: 6px 0;
+}

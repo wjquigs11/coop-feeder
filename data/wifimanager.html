@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Coop Feeder Wi-Fi Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+  <div class="topnav">
+    <h1>Coop Feeder Wi-Fi Manager</h1>
+  </div>
+  <div class="content">
+    <div class="card-grid">
+      <div class="card">
+        <form id="wifi-form" action="/wifimanager" method="POST">
+          <p>
+            <label for="hostname">HOSTNAME</label>
+            <input type="text" id="hostname" name="hostname"><br>
+            <label for="ssid">SSID</label>
+            <input type="text" id ="ssid" name="ssid"><br>
+            <label for="pass">Password</label>
+            <input type="text" id ="pass" name="pass"><br>
+            <label for="ip">IP Address</label>
+            <input type="text" id ="ip" name="ip"><br>
+            <label for="gateway">Gateway Address</label>
+            <input type="text" id ="gateway" name="gateway"><br>
+            <input type ="submit" value ="Submit">
+          </p>
+        </form>
+        <div id="notify" class="wifi-notify">Reconnecting...</div>
+      </div>
+      <div class="card">
+        <p><strong>Saved Networks</strong></p>
+        <div id="ssid-list"><em>Loading...</em></div>
+        <br>
+        <button id="delete-btn" class="wifi-delete-btn" onclick="deleteSelected()">Delete Selected</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    function loadSSIDs() {
+      fetch('/wifilist')
+        .then(function(r) { return r.json(); })
+        .then(function(list) {
+          var container = document.getElementById('ssid-list');
+          if (list.length === 0) {
+            container.innerHTML = '<em>No saved networks</em>';
+            return;
+          }
+          var html = '';
+          for (var i = 0; i < list.length; i++) {
+            html += '<label class="wifi-ssid-row">';
+            html += '<input type="checkbox" name="ssid" value="' + list[i] + '"> ';
+            html += list[i] + '</label>';
+          }
+          container.innerHTML = html;
+        })
+        .catch(function() {
+          document.getElementById('ssid-list').innerHTML = '<em>Error loading</em>';
+        });
+    }
+
+    function deleteSelected() {
+      var boxes = document.querySelectorAll('#ssid-list input[type=checkbox]:checked');
+      if (boxes.length === 0) { alert('Select at least one network'); return; }
+      var body = '';
+      for (var i = 0; i < boxes.length; i++) {
+        if (i > 0) body += '&';
+        body += 'ssid=' + encodeURIComponent(boxes[i].value);
+      }
+      fetch('/wifidelete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body
+      }).then(function() { loadSSIDs(); });
+    }
+
+    loadSSIDs();
+
+    document.getElementById('wifi-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var form = e.target;
+      var data = new URLSearchParams(new FormData(form));
+      document.getElementById('notify').style.display = 'block';
+      fetch(form.action, {
+        method: 'POST',
+        body: data
+      }).then(function() {
+        document.getElementById('notify').textContent = 'Saved. Reconnecting...';
+      }).catch(function() {
+        document.getElementById('notify').textContent = 'Reconnecting...';
+      });
+    });
+  </script>
+</body>
+</html>

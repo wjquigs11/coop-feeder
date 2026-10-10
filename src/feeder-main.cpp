@@ -25,6 +25,14 @@ bool wifiEnabled = false;
 int timerDelay = 1000;
 unsigned long lastTime = 0;
 
+// WiFi state globals (shared with wifi.cpp)
+bool wifiConnected = false;
+unsigned long wifiStartTime = 0;
+// loopDelay: delay at end of loop(); raised to DNS_INTERVAL by captive portal
+int loopDelay = 10;
+// global millis() snapshot, shared with wifi.cpp
+unsigned long now = 0;
+
 // Deferred flash write state
 volatile bool pendingSaveToPrefs = false;
 volatile bool pendingHostnameChange = false;
@@ -95,6 +103,9 @@ void setup() {
 #ifdef WIFI
   host = preferences.getString("hostname", host);
   log::toAll("hostname: " + host);
+  // Inspect LittleFS and load saved WiFi credentials (array in wifi.json)
+  checkLittleFS();
+  gotWifiCreds = readWiFiCredentials();
 #endif
   wifiEnabled = preferences.getBool("wifi", true);
 
@@ -115,11 +126,14 @@ void setup() {
     }
     //} else {
       preferences.putBool("DRD", true);
-      bool wifiConnected = setupWifi();
-      // Start the web server regardless of WiFi connection status
-      // In fallback mode, it will serve from AP mode
+      // Async connect: returns immediately. WiFi event handler (onWiFiConnected)
+      // sets up mDNS once an IP is acquired. If no creds / connect fails, the
+      // captive portal is started from within the connect task.
+      setupWifi();
+      // Start the app web server now; it serves app routes in STA mode.
+      // (The captive portal runs its own minimal server when active.)
       startWebServer();
-      
+
 #ifdef ELEGANTOTA
       ElegantOTA.begin(&server);
 #endif
@@ -129,37 +143,7 @@ void setup() {
       WebSerial.onMessage(WebSerialonMessage);
 #endif
       serverStarted = true;
-      
-      if (wifiConnected) {
-        log::toAll("HTTP server started @" + WiFi.localIP().toString());
-      } else {
-        log::toAll("HTTP server started in AP mode @" + WiFi.softAPIP().toString());
-      }
-      // Sanitize hostname for mDNS
-      String mdnsHost = host;
-      mdnsHost.toLowerCase();
-      mdnsHost.replace("_", "-");
-      mdnsHost.replace(" ", "-");
-      String sanitized = "";
-      for (int i = 0; i < (int)mdnsHost.length() && i < 63; i++) {
-        char c = mdnsHost.charAt(i);
-        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
-          sanitized += c;
-        }
-      }
-      if (sanitized.length() > 0) {
-        if (!MDNS.begin(sanitized.c_str())) {
-          log::toAll("Error starting MDNS responder");
-        } else {
-          snprintf(logbuf, LOGBUF_SIZE, "MDNS started as %s.local", sanitized.c_str());
-          log::toAll(logbuf);
-        }
-      } else {
-        log::toAll("Invalid hostname for MDNS");
-      }
-      // Add service to MDNS-SD
-      if (!MDNS.addService("http", "tcp", HTTP_PORT))
-        log::toAll("MDNS add service failed");
+      log::toAll("HTTP server started (WiFi connecting async; mDNS set on connect)");
     //}
   }
 #endif // WIFI
@@ -176,10 +160,13 @@ void loop() {
 #ifdef NETWIZARD
   NW.loop();
 #endif
-  unsigned long now = millis();
+  now = millis();
   static unsigned long lastEventTime, lastTimeTime, startTime;
 #ifdef WIFI
   wifiCheck();
+  // service captive-portal DNS when running in AP mode
+  if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA)
+    dnsServer.processNextRequest();
   // update web page
   static bool drdCleared = false;
   
