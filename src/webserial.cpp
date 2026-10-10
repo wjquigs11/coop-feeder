@@ -26,7 +26,7 @@ static String formatMacAddress(const String& macAddress) {
 
 static const char* commandHelp =
   "commands: ?, restart, hostname, status, wifi, littlefs, conslog, "
-  "toggle, timer, empty, full, note";
+  "toggle, timer, loadcell, empty, full, note";
 
 void handleCommand(String dataS) {
   dataS.trim();
@@ -220,6 +220,13 @@ void handleCommand(String dataS) {
     }
     snprintf(logbuf, LOGBUF_SIZE, "timerDelay: %d ms", timerDelay);
     log::toAll(logbuf);
+    return;
+  }
+
+  if (cmd == "loadcell") {
+    extern bool loadcellSerialOutput;
+    loadcellSerialOutput = !loadcellSerialOutput;
+    Serial.printf("loadcell serial output: %s\n", loadcellSerialOutput ? "on" : "off");
     return;
   }
 
