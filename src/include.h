@@ -3,6 +3,7 @@
 #include <Preferences.h>
 
 #if defined(WIFI) || defined(NETWIZARD)
+#include <WiFi.h>
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
 #ifdef ELEGANTOTA_USE_ASYNC_WEBSERVER
