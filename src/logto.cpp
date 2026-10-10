@@ -21,7 +21,7 @@ void log::toAll(const char* s) {
     Serial.println(s);
 #ifdef WEBSERIAL
     if (serverStarted) {
-      WebSerial.println(s);
+      WebSerial.printf("%s\n",s);
     }
 #endif
     // Buffer the line for deferred file write
