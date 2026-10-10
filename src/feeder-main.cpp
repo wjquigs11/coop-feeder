@@ -33,8 +33,8 @@ volatile bool pendingTimerChange = false;
 int pendingTimerDelay = 0;
 
 // HX711 circuit wiring
-const int HX711_dout = 27; //mcu > HX711 dout pin
-const int HX711_sck = 14; //mcu > HX711 sck pin
+const int HX711_dout = 22; //mcu > HX711 dout pin
+const int HX711_sck = 18; //mcu > HX711 sck pin
 HX711 LoadCell;
 
 unsigned long t = 0;
