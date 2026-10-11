@@ -190,3 +190,36 @@ ESP32 feeder ──HTTP (LAN)──> relay ──HTTPS──> Expo push API ─�
 Decision guide: **has internet** → build the relay + push (reliable when the app
 is closed). **LAN-only / sometimes offline** → keep the local-notification +
 background-task approach and accept that closed-app delivery is best-effort.
+
+## Supporting multiple feeders (BLE) — design note
+
+The BLE service/characteristic UUIDs (`src/ble.ts`, firmware `src/ble.cpp`) are
+hard-coded and **shared by every feeder on purpose**. A GATT service UUID
+identifies the *type* of service ("a coop-feeder reading service"), not a
+device — same idea as a port number or an API path. The app scans for that one
+UUID to discover "any feeder," exactly like every heart-rate strap advertises
+the same 0x180D Heart Rate UUID. So the shared UUID is correct and must not be
+made per-device or configurable.
+
+To tell multiple feeders apart, use **identity**, not the UUID:
+
+- **Advertised name** — the human label. The firmware advertises under its
+  `host` preference, so give each unit a distinct name ("Coop North", "Coop
+  South"). The app sees it as `device.name` in scan results.
+- **BLE MAC (`device.id`)** — the stable key to remember a chosen feeder.
+
+What changes when a second feeder is added (not implemented yet):
+
+1. **App:** the only single-feeder assumption is in `scanForFeeder()`, which
+   returns the *first* match. Add a `scanForFeeders()` that accumulates all
+   matches over the scan window as `{id, name}`, let the user pick, persist the
+   chosen `device.id`, and have `connectBle()` / `readOnce()` target that id.
+   The future background opportunistic-scan task would iterate the remembered
+   feeder ids.
+2. **Firmware:** nothing structural — just ensure each feeder's `host`/name is
+   unique (already user-settable). Optionally add a small read-only "name"
+   characteristic if you want the friendly name available after connect without
+   relying on the advertisement.
+
+Pattern summary: one shared service UUID to find the fleet; name + MAC to
+distinguish units.

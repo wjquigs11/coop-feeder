@@ -281,7 +281,10 @@ void loop() {
   if ((now - wakeStartTime) > ((unsigned long)awakeTimer * 1000UL)) {
     log::toAll("Awake timer elapsed; entering deep sleep for " +
                String(TIME_TO_SLEEP) + "s");
-    consLog.flush();
+    // Drain the ring buffer to /console.log (log::flush does ring->file, then
+    // flushes the file). Must come AFTER the log::toAll above, or that final
+    // line stays in the ring buffer and is lost across the sleep/reboot.
+    log::flush();
 #ifdef WEBSERIAL
     WebSerial.flush();
 #endif

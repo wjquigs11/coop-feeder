@@ -16,6 +16,18 @@ import { BleManager, State, type Device } from 'react-native-ble-plx';
 import { readingFromLevel, type Reading } from './api';
 
 // Must match the firmware (src/ble.cpp / src/include.h).
+//
+// These UUIDs identify the TYPE of service ("a coop-feeder reading service"),
+// not a specific device, so EVERY feeder advertises the same ones and the app
+// scans for them to find "any feeder" (like all heart-rate straps share
+// 0x180D). Do NOT make these per-device/configurable.
+//
+// MULTI-FEEDER (future): to support more than one feeder, keep the shared UUID
+// and distinguish units by identity instead: the advertised name (device.name,
+// driven by the feeder's `host` preference) for the human label, and the BLE
+// MAC (device.id) as the stable key. The refactor is: scan and collect ALL
+// matches (not just the first — see scanForFeeder below), let the user pick,
+// persist the chosen device.id, and have connect/readOnce target that id.
 export const BLE_SERVICE_UUID = 'e3a1f6c0-2b7d-4c1a-9f3e-0a1b2c3d4e5f';
 export const BLE_READING_CHAR_UUID = 'e3a1f6c1-2b7d-4c1a-9f3e-0a1b2c3d4e5f';
 
@@ -101,8 +113,13 @@ function decodeLevelByte(value: string | null | undefined): number {
 }
 
 /**
- * Scan for the feeder advertising our service UUID and return the first match.
+ * Scan for the feeder advertising our service UUID and return the FIRST match.
  * Rejects after SCAN_TIMEOUT_MS if nothing is found (e.g. out of range).
+ *
+ * SINGLE-FEEDER ASSUMPTION: taking the first match is the only place that
+ * assumes exactly one feeder. For multi-feeder support, add a scanForFeeders()
+ * that accumulates all matches over the scan window as {id, name} and let the
+ * caller pick/persist a device.id; connect/readOnce would then target that id.
  */
 async function scanForFeeder(): Promise<Device> {
   // Guard: runtime permissions and adapter power, with clear error messages.

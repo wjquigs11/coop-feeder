@@ -28,6 +28,12 @@
 
 // --- Project symbols declared by hand (normally from include.h) ---------
 // Matched to the definitions in include.h; keep in sync.
+//
+// The UUIDs identify the service TYPE, not a device, so EVERY feeder uses the
+// SAME ones (that's how the app scans for "any feeder"). For multiple feeders,
+// don't change the UUID per unit — give each a unique advertised name via its
+// `host` preference (used below for the advertised name); the app tells units
+// apart by name + BLE MAC. See react-app/src/ble.ts for the client side.
 #define BLE_SERVICE_UUID        "e3a1f6c0-2b7d-4c1a-9f3e-0a1b2c3d4e5f"
 #define BLE_READING_CHAR_UUID   "e3a1f6c1-2b7d-4c1a-9f3e-0a1b2c3d4e5f"
 extern String host;                 // configured device/mDNS hostname
