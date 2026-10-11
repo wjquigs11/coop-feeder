@@ -2,7 +2,7 @@
 #include <LittleFS.h>
 #include <Preferences.h>
 
-#if defined(WIFI) || defined(NETWIZARD)
+#ifdef WIFI
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
@@ -31,8 +31,7 @@ void wifiCheck();
 void startWebServer();
 String getSensorReadings();
 
-// WiFi credential handling (ported from 0-wifi-template, active when WIFI && !NETWIZARD)
-#ifndef NETWIZARD
+// WiFi credential handling (ported from 0-wifi-template)
 #include <DNSServer.h>
 #define DNS_INTERVAL 300
 #define MAX_WIFI_NETWORKS 5
@@ -56,8 +55,7 @@ void onWiFiConnected();
 void onWiFiDisconnected();
 void saveNewWifiCredentials(const char* ssid, const char* password);
 void deleteWifiCredentials(const char* ssid);
-#endif // ifndef NETWIZARD
-#endif
+#endif // ifdef WIFI
 
 #ifdef BLE
 // BLE (NimBLE) GATT interface. Mirrors the WiFi path: the feeder advertises a
@@ -85,9 +83,16 @@ void pollSerialConsole();
 #ifdef ELEGANTOTA
 #include <ElegantOTA.h>
 #endif
-#ifdef NETWIZARD
-#include <NetWizard.h>
-extern NetWizard NW;
+
+#ifdef DEEPSLEEP
+// Deep sleep: wake on a timer, stay awake awakeTimer seconds (long enough to
+// take a reading and serve/advertise it), then sleep TIME_TO_SLEEP seconds.
+#include <esp_sleep.h>
+#define uS_TO_S_FACTOR 1000000ULL  // microseconds -> seconds
+#define TIME_TO_SLEEP 300          // seconds asleep between wakes (5 min)
+extern int awakeTimer;             // seconds to stay awake per wake cycle
+extern int bootCount;              // persists across deep sleep (RTC_DATA_ATTR at definition)
+void print_wakeup_reason();
 #endif
 
 #include "logto.h"

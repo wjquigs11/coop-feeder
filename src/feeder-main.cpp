@@ -51,6 +51,28 @@ long raw=0;
 long empty_offset = 0; // offset value for empty feeder
 long full_raw = -420000; // offset value for full feeder (remember it's in tension so "reverse")
 
+#ifdef DEEPSLEEP
+// Deep sleep state (see include.h for TIME_TO_SLEEP / awakeTimer semantics).
+int awakeTimer = 60;              // stay awake this many seconds per wake cycle
+RTC_DATA_ATTR int bootCount = 0;  // survives deep sleep in RTC memory
+unsigned long wakeStartTime = 0;  // millis() at wake, for the awake-timer check
+
+// Log why the ESP32 woke (timer, external pin, etc.).
+void print_wakeup_reason() {
+  esp_sleep_wakeup_cause_t reason = esp_sleep_get_wakeup_cause();
+  switch (reason) {
+    case ESP_SLEEP_WAKEUP_EXT0:    log::toAll("Wakeup: external signal (RTC_IO)"); break;
+    case ESP_SLEEP_WAKEUP_EXT1:    log::toAll("Wakeup: external signal (RTC_CNTL)"); break;
+    case ESP_SLEEP_WAKEUP_TIMER:   log::toAll("Wakeup: timer"); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD:log::toAll("Wakeup: touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP:     log::toAll("Wakeup: ULP program"); break;
+    default:
+      log::toAll("Wakeup: not from deep sleep (" + String((int)reason) + ")");
+      break;
+  }
+}
+#endif
+
 // Configure tare offset values, calculate and save to preferences:
 void configTare(const String& type) {
   log::toAll("Calculating " + type + " offset value...");
@@ -88,6 +110,18 @@ void setup() {
     Serial.println("failed to open LittleFS");
 
   log::initConsole();
+
+#ifdef DEEPSLEEP
+  wakeStartTime = millis();
+  ++bootCount;
+  log::toAll("Boot number: " + String(bootCount));
+  print_wakeup_reason();
+  // Wake again on a timer after TIME_TO_SLEEP seconds.
+  esp_sleep_enable_timer_wakeup((uint64_t)TIME_TO_SLEEP * uS_TO_S_FACTOR);
+  log::toAll("Deep sleep: awake " + String(awakeTimer) + "s, then sleep " +
+             String(TIME_TO_SLEEP) + "s");
+#endif
+
   preferences.begin("ESPprefs", false);
   //restore the offset values from preferences:
   empty_offset = preferences.getLong("empty_offset", 0);
@@ -117,10 +151,8 @@ void setup() {
 
   if (wifiEnabled) {
     if (doubleReset) {
-      // DRD currently not working without Netwizard
       log::toAll("double reset detected");
       //resetWifi();
-      //NW.erase();
       preferences.putBool("DRD", false);
       //ESP.restart();
     }
@@ -159,9 +191,6 @@ void loop() {
 #endif
 #ifdef WEBSERIAL
   WebSerial.loop();
-#endif
-#ifdef NETWIZARD
-  NW.loop();
 #endif
   now = millis();  // global (shared with wifi.cpp) — do not redeclare locally
   static unsigned long lastEventTime, lastTimeTime, startTime;
@@ -245,4 +274,19 @@ void loop() {
     }
   }
   log::flush();
+
+#ifdef DEEPSLEEP
+  // Once we've been awake long enough to take a reading and serve/advertise it,
+  // go back to sleep until the next timer wake.
+  if ((now - wakeStartTime) > ((unsigned long)awakeTimer * 1000UL)) {
+    log::toAll("Awake timer elapsed; entering deep sleep for " +
+               String(TIME_TO_SLEEP) + "s");
+    consLog.flush();
+#ifdef WEBSERIAL
+    WebSerial.flush();
+#endif
+    delay(200);  // let final log/serial output drain
+    esp_deep_sleep_start();  // execution stops here until the next wake
+  }
+#endif
 } // loop()

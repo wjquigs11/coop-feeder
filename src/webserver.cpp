@@ -1,4 +1,4 @@
-#if defined(WIFI) || defined(NETWIZARD)
+#ifdef WIFI
 #include "include.h"
 
 AsyncWebServer server(HTTP_PORT);

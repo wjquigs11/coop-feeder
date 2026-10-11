@@ -1,9 +1,8 @@
 // Full WiFi handling for coop-feeder, ported from 0-wifi-template.
 // Features: multi-SSID, async non-blocking connect, captive portal,
 // pre-connect scan, lastSSID priority, and gateway-reachability health check.
-// Active when WIFI is defined and NETWIZARD is not.
+// Active when WIFI is defined.
 #ifdef WIFI
-#ifndef NETWIZARD
 /*
 Start wifi. If there are credentials saved in a file, use them.
 If not, start a captive portal (using DNS).
@@ -766,5 +765,4 @@ void deleteWifiCredentials(const char* ssid) {
   readWiFiCredentials();
   gotWifiCreds = (wifiCount > 0);
 }
-#endif // ifndef NETWIZARD
 #endif // ifdef WIFI
