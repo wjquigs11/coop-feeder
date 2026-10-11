@@ -122,6 +122,17 @@ void setup() {
   ++bootCount;
   log::toAll("Boot number: " + String(bootCount));
   print_wakeup_reason();
+  // Wake summary: a log fetched DURING an awake window can't contain this
+  // session's own "entering deep sleep" line (it hasn't happened yet), so state
+  // the sleep interval here at wake instead. For a timer wake, the device was
+  // asleep ~TIME_TO_SLEEP seconds since the previous session; the very first
+  // boot (bootCount==1) is a power-on, not a wake-from-sleep.
+  if (bootCount > 1 && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
+    log::toAll("Woke (boot #" + String(bootCount) + ") after ~" +
+               String(TIME_TO_SLEEP) + "s asleep");
+  } else {
+    log::toAll("Power-on / reset (boot #" + String(bootCount) + "), not a timer wake");
+  }
   // Wake again on a timer after TIME_TO_SLEEP seconds.
   esp_sleep_enable_timer_wakeup((uint64_t)TIME_TO_SLEEP * uS_TO_S_FACTOR);
   log::toAll("Deep sleep: awake " + String(awakeTimer) + "s, then sleep " +
