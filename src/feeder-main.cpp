@@ -53,7 +53,7 @@ long full_raw = -420000; // offset value for full feeder (remember it's in tensi
 
 #ifdef DEEPSLEEP
 // Deep sleep state (see include.h for TIME_TO_SLEEP / awakeTimer semantics).
-int awakeTimer = 60;              // stay awake this many seconds per wake cycle
+int awakeTimer = 120;              // stay awake this many seconds per wake cycle
 RTC_DATA_ATTR int bootCount = 0;  // survives deep sleep in RTC memory
 unsigned long wakeStartTime = 0;  // millis() at wake, for the awake-timer check
 
@@ -104,10 +104,16 @@ void setup() {
   //pinMode(HX711_dout, INPUT);
   //pinMode(HX711_sck, OUTPUT);
 
-  if (LittleFS.begin(true))
+  // Mount LittleFS WITHOUT formatOnFail: a failed mount must NOT silently wipe
+  // the web assets (index.html, gauge.min.js, etc.) uploaded via `uploadfs`.
+  // If the mount fails (e.g. the FS image was never uploaded for the current
+  // partition layout), log it and continue — do not format. Run
+  // `pio run -t uploadfs` to (re)flash the data/ image, or use the WebSerial
+  // `format` command to deliberately erase.
+  if (LittleFS.begin(false))
     Serial.println("opened LittleFS");
   else
-    Serial.println("failed to open LittleFS");
+    Serial.println("failed to open LittleFS (run uploadfs; not auto-formatting)");
 
   log::initConsole();
 
