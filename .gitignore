@@ -19,3 +19,6 @@ react-app/settings.json
 
 # openscad-case: derived PDF datasheet extraction dump (regenerable). Keep .scad, README, reference images, and print_parts/*.stl tracked.
 openscad-case/output/
+
+console.log
+.gitignore
